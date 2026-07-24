@@ -1,18 +1,29 @@
 from __future__ import annotations
 
+import json
+import re
+import subprocess
 from datetime import datetime
 from pathlib import Path
 
-from PIL import ExifTags, Image
-
 from .models import Photo
-
-_DATETIME_TAG = next(k for k, v in ExifTags.TAGS.items() if v == "DateTimeOriginal")
-_MODEL_TAG = next(k for k, v in ExifTags.TAGS.items() if v == "Model")
 
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".heic", ".tiff", ".png"}
 VIDEO_SUFFIXES = {".mp4", ".mov", ".avi", ".mkv"}
 SUPPORTED_SUFFIXES = IMAGE_SUFFIXES | VIDEO_SUFFIXES
+
+_DATETIME_RE = re.compile(r"(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})")
+
+
+def _parse_exiftool_datetime(value: str) -> datetime | None:
+    match = _DATETIME_RE.match(value.strip())
+    if not match:
+        return None
+    year, month, day, hour, minute, second = (int(part) for part in match.groups())
+    try:
+        return datetime(year, month, day, hour, minute, second)
+    except ValueError:
+        return None
 
 
 def read_photo_metadata(path: Path) -> Photo:
@@ -20,15 +31,20 @@ def read_photo_metadata(path: Path) -> Photo:
     camera_model: str | None = None
 
     try:
-        with Image.open(path) as image:
-            exif = image.getexif()
-            raw_datetime = exif.get(_DATETIME_TAG)
-            if raw_datetime:
-                taken_at = datetime.strptime(raw_datetime, "%Y:%m:%d %H:%M:%S")
-            raw_model = exif.get(_MODEL_TAG)
-            if raw_model:
-                camera_model = raw_model.strip()
-    except Exception:
+        result = subprocess.run(
+            ["exiftool", "-j", "-DateTimeOriginal", "-CreateDate", "-Model", str(path)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        data = json.loads(result.stdout)[0]
+        raw_datetime = data.get("DateTimeOriginal") or data.get("CreateDate")
+        if raw_datetime:
+            taken_at = _parse_exiftool_datetime(raw_datetime)
+        raw_model = data.get("Model")
+        if raw_model:
+            camera_model = raw_model.strip()
+    except (subprocess.CalledProcessError, FileNotFoundError, json.JSONDecodeError, IndexError):
         pass
 
     if taken_at is None:

@@ -59,7 +59,7 @@ files-organizer/
 ├── config.example.yaml     # przykładowa konfiguracja (skopiuj do config.yaml)
 ├── src/files_organizer/
 │   ├── models.py            # Event, Photo
-│   ├── exif_reader.py       # odczyt EXIF (data, model aparatu)
+│   ├── exif_reader.py       # odczyt EXIF przez exiftool (data, model aparatu)
 │   ├── calendar_sources/    # ICS / Google / Outlook
 │   ├── matcher.py           # dopasowanie zdjęcia do wydarzenia
 │   ├── organizer.py         # budowa struktury katalogów, kopiowanie/przenoszenie
@@ -72,6 +72,13 @@ files-organizer/
 ```
 
 ## Uruchomienie
+
+Odczyt EXIF/metadanych korzysta z narzędzia [exiftool](https://exiftool.org/)
+(obsługuje też pliki wideo, w przeciwieństwie do samego Pillow):
+
+```
+brew install exiftool
+```
 
 ```
 pip install -e ".[dev]"

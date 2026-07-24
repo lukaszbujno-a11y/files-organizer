@@ -6,7 +6,7 @@ from pathlib import Path
 from ..models import Event
 from .base import CalendarSource
 
-SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
+SCOPES = ["https://www.googleapis.com/auth/calendar.events.readonly"]
 
 
 class GoogleCalendarSource(CalendarSource):

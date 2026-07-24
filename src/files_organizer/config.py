@@ -1,0 +1,48 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from pathlib import Path
+
+import yaml
+
+
+@dataclass(frozen=True)
+class PhoneMappingEntry:
+    camera_model: str
+    parent_dir: str
+
+
+@dataclass(frozen=True)
+class Config:
+    input_dir: Path
+    output_dir: Path
+    calendar: dict
+    mode: str = "copy"
+    margin_hours: float = 2
+    unmatched_dir_name: str = "Nieprzypisane"
+    overlap_dir_name: str = "Niedopasowane"
+    phone_mapping: dict[str, PhoneMappingEntry] = field(default_factory=dict)
+
+    def __post_init__(self):
+        if self.mode not in {"copy", "move"}:
+            raise ValueError(f"mode must be 'copy' or 'move', got {self.mode!r}")
+
+
+def load_config(path: str | Path) -> Config:
+    raw = yaml.safe_load(Path(path).read_text())
+
+    phone_mapping = {
+        tag: PhoneMappingEntry(camera_model=entry["camera_model"], parent_dir=entry["parent_dir"])
+        for tag, entry in (raw.get("phone_mapping") or {}).items()
+    }
+
+    return Config(
+        input_dir=Path(raw["input_dir"]),
+        output_dir=Path(raw["output_dir"]),
+        calendar=raw["calendar"],
+        mode=raw.get("mode", "copy"),
+        margin_hours=raw.get("margin_hours", 2),
+        unmatched_dir_name=raw.get("unmatched_dir_name", "Nieprzypisane"),
+        overlap_dir_name=raw.get("overlap_dir_name", "Niedopasowane"),
+        phone_mapping=phone_mapping,
+    )

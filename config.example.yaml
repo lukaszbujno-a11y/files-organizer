@@ -15,9 +15,9 @@ calendar:
   # ics | google | outlook
   type: "ics"
   path: "./data/calendar.ics"
-  # google:
-  #   credentials_file: "~/.config/files-organizer/credentials.json"
-  #   token_file: "~/.config/files-organizer/token.json"
+  # type: "google"
+  # credentials_file: "~/.config/files-organizer/credentials.json"
+  # token_file: "~/.config/files-organizer/token.json"
   # outlook:
   #   client_id: ""
   #   client_secret: ""

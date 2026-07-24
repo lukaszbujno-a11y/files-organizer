@@ -33,15 +33,17 @@ def main(config_path: str, input_dir: Path | None, output_dir: Path | None, dry_
         photo = read_photo_metadata(path)
         match = match_photo_to_event(photo, events, margin_hours=config.margin_hours)
 
+        taken_at = f"{photo.taken_at:%Y-%m-%d %H:%M:%S}" if photo.taken_at else "unknown date"
+
         if match.status == MatchStatus.UNMATCHED:
-            click.echo(f"{photo.path} -> skipped (no matching calendar event)")
+            click.echo(f"{photo.path} ({taken_at}) -> skipped (no matching calendar event)")
         elif dry_run:
             from .organizer import build_target_dir
 
-            click.echo(f"{photo.path} -> {build_target_dir(config, photo, match)}")
+            click.echo(f"{photo.path} ({taken_at}) -> {build_target_dir(config, photo, match)}")
         else:
             destination = place_photo(config, photo, match)
-            click.echo(f"{photo.path} -> {destination}")
+            click.echo(f"{photo.path} ({taken_at}) -> {destination}")
 
 
 if __name__ == "__main__":

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from pathlib import Path
 
 from ..models import Event
 from .base import CalendarSource
@@ -14,12 +15,16 @@ class GoogleCalendarSource(CalendarSource):
     Requires an OAuth `credentials_file` (Desktop app client secret from
     Google Cloud Console). On first run a browser window opens for consent
     and a `token.json` is cached next to it for subsequent runs.
+
+    Both paths support `~` for the home directory, so the credentials and
+    token can be kept outside the project directory, e.g.
+    `~/.config/files-organizer/token.json`.
     """
 
     def __init__(self, credentials_file: str, calendar_id: str = "primary", token_file: str = "token.json"):
-        self.credentials_file = credentials_file
+        self.credentials_file = Path(credentials_file).expanduser()
         self.calendar_id = calendar_id
-        self.token_file = token_file
+        self.token_file = Path(token_file).expanduser()
 
     def get_events(self) -> list[Event]:
         service = self._build_service()
@@ -46,10 +51,10 @@ class GoogleCalendarSource(CalendarSource):
             if creds and creds.expired and creds.refresh_token:
                 creds.refresh(Request())
             else:
-                flow = InstalledAppFlow.from_client_secrets_file(self.credentials_file, SCOPES)
+                flow = InstalledAppFlow.from_client_secrets_file(str(self.credentials_file), SCOPES)
                 creds = flow.run_local_server(port=0)
-            with open(self.token_file, "w") as f:
-                f.write(creds.to_json())
+            self.token_file.parent.mkdir(parents=True, exist_ok=True)
+            self.token_file.write_text(creds.to_json())
 
         return build("calendar", "v3", credentials=creds)
 

@@ -23,6 +23,8 @@ def main(config_path: str, input_dir: Path | None, output_dir: Path | None, dry_
         config = replace(config, input_dir=input_dir)
     if output_dir is not None:
         config = replace(config, output_dir=output_dir)
+    if config.output_dir is None:
+        raise click.UsageError("output_dir must be set via --output-dir or in the config file.")
 
     events = []
     if config.calendar:

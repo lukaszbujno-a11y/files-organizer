@@ -15,7 +15,7 @@ class PhoneMappingEntry:
 @dataclass(frozen=True)
 class Config:
     input_dir: Path
-    output_dir: Path
+    output_dir: Path | None
     calendar: dict | None = None
     mode: str = "copy"
     margin_hours: float = 2
@@ -46,9 +46,11 @@ def load_config(path: str | Path) -> Config:
         for tag, entry in (raw.get("phone_mapping") or {}).items()
     }
 
+    output_dir = raw.get("output_dir")
+
     return Config(
         input_dir=Path(raw["input_dir"]),
-        output_dir=Path(raw["output_dir"]),
+        output_dir=Path(output_dir) if output_dir is not None else None,
         calendar=raw.get("calendar"),
         mode=raw.get("mode", "copy"),
         margin_hours=raw.get("margin_hours", 2),

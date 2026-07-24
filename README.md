@@ -80,6 +80,20 @@ files-organizer --config config.yaml --dry-run
 pytest
 ```
 
+Ścieżki wejścia/wyjścia można też wskazać bez configu:
+
+```
+# bez config.yaml: input_dir = katalog bieżący, output_dir = ./output
+cd /sciezka/ze/zdjeciami
+files-organizer --dry-run
+
+# jawne wskazanie katalogów (nadpisuje config.yaml, jeśli istnieje)
+files-organizer --input-dir /sciezka/ze/zdjeciami --output-dir /sciezka/wynikowa --dry-run
+```
+
+Bez `config.yaml` (lub bez sekcji `calendar` w configu) zdjęcia nie są
+dopasowywane do wydarzeń kalendarza — trafiają do katalogu `Nieprzypisane`.
+
 ## Przygotowanie do pracy z git
 
 GitHub blokuje push, jeśli commity zawierają prywatny e-mail (błąd `GH007`).

@@ -16,7 +16,7 @@ class PhoneMappingEntry:
 class Config:
     input_dir: Path
     output_dir: Path
-    calendar: dict
+    calendar: dict | None = None
     mode: str = "copy"
     margin_hours: float = 2
     unmatched_dir_name: str = "Nieprzypisane"
@@ -28,8 +28,18 @@ class Config:
             raise ValueError(f"mode must be 'copy' or 'move', got {self.mode!r}")
 
 
+def default_config(base_dir: str | Path | None = None) -> Config:
+    """Config used when no config file is found: operate on the current directory."""
+    base_dir = Path(base_dir) if base_dir is not None else Path.cwd()
+    return Config(input_dir=base_dir, output_dir=base_dir / "output")
+
+
 def load_config(path: str | Path) -> Config:
-    raw = yaml.safe_load(Path(path).read_text())
+    path = Path(path)
+    if not path.exists():
+        return default_config()
+
+    raw = yaml.safe_load(path.read_text())
 
     phone_mapping = {
         tag: PhoneMappingEntry(camera_model=entry["camera_model"], parent_dir=entry["parent_dir"])
@@ -39,7 +49,7 @@ def load_config(path: str | Path) -> Config:
     return Config(
         input_dir=Path(raw["input_dir"]),
         output_dir=Path(raw["output_dir"]),
-        calendar=raw["calendar"],
+        calendar=raw.get("calendar"),
         mode=raw.get("mode", "copy"),
         margin_hours=raw.get("margin_hours", 2),
         unmatched_dir_name=raw.get("unmatched_dir_name", "Nieprzypisane"),

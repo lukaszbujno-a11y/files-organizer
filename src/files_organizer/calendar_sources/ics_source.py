@@ -38,5 +38,5 @@ class IcsCalendarSource(CalendarSource):
 
 def _to_datetime(value) -> datetime:
     if isinstance(value, datetime):
-        return value
+        return value.replace(tzinfo=None)
     return datetime.combine(value, time.min)

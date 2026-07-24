@@ -70,4 +70,5 @@ def _to_event(item: dict) -> Event:
 
 
 def _parse_datetime(value: dict) -> datetime:
-    return datetime.fromisoformat(value.get("dateTime", value.get("date")))
+    parsed = datetime.fromisoformat(value.get("dateTime", value.get("date")))
+    return parsed.replace(tzinfo=None)

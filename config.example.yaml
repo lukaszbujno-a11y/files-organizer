@@ -1,0 +1,29 @@
+# Skopiuj do config.yaml i dostosuj do swoich potrzeb.
+
+input_dir: "./data/input"
+output_dir: "./data/output"
+unmatched_dir_name: "Nieprzypisane"
+overlap_dir_name: "Niedopasowane"
+
+# copy | move
+mode: "copy"
+
+# Margines dopasowania zdjęcia do wydarzenia (godziny)
+margin_hours: 2
+
+calendar:
+  # ics | google | outlook
+  type: "ics"
+  path: "./data/calendar.ics"
+  # google:
+  #   credentials_file: "./credentials.json"
+  # outlook:
+  #   client_id: ""
+  #   client_secret: ""
+
+# Opcjonalne rozdzielenie na katalog nadrzędny na podstawie
+# tagu wydarzenia w kalendarzu i modelu telefonu z EXIF.
+phone_mapping:
+  # tag_z_kalendarza:
+  #   camera_model: "iPhone 15 Pro"
+  #   parent_dir: "Ania"

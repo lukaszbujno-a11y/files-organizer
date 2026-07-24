@@ -50,3 +50,31 @@ utwórz katalog w strukturze np:
 
 Jezyk programowania Python.
 Pozostale do ustalenia
+
+# Struktura projektu
+
+```
+files-organizer/
+├── pyproject.toml          # zależności, konfiguracja pytest
+├── config.example.yaml     # przykładowa konfiguracja (skopiuj do config.yaml)
+├── src/files_organizer/
+│   ├── models.py            # Event, Photo
+│   ├── exif_reader.py       # odczyt EXIF (data, model aparatu)
+│   ├── calendar_sources/    # ICS / Google / Outlook
+│   ├── matcher.py           # dopasowanie zdjęcia do wydarzenia
+│   ├── organizer.py         # budowa struktury katalogów, kopiowanie/przenoszenie
+│   ├── config.py            # wczytywanie config.yaml
+│   └── cli.py                # `files-organizer --config config.yaml [--dry-run]`
+├── tests/                    # testy pytest
+├── examples/sample.ics       # przykładowy kalendarz do testów
+└── data/{input,output}/      # domyślne katalogi wejścia/wyjścia (gitignored)
+```
+
+## Uruchomienie
+
+```
+pip install -e ".[dev]"
+cp config.example.yaml config.yaml
+files-organizer --config config.yaml --dry-run
+pytest
+```

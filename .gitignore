@@ -216,3 +216,13 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# files-organizer local data
+config.yaml
+data/input/*
+data/output/*
+!data/input/.gitkeep
+!data/output/.gitkeep
+credentials.json
+token.json
+o365_token.txt

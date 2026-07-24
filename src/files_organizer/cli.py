@@ -8,7 +8,7 @@ import click
 from .calendar_sources import get_calendar_source
 from .config import load_config
 from .exif_reader import iter_media_files, read_photo_metadata
-from .matcher import match_photo_to_event
+from .matcher import MatchStatus, match_photo_to_event
 from .organizer import place_photo
 
 
@@ -33,7 +33,9 @@ def main(config_path: str, input_dir: Path | None, output_dir: Path | None, dry_
         photo = read_photo_metadata(path)
         match = match_photo_to_event(photo, events, margin_hours=config.margin_hours)
 
-        if dry_run:
+        if match.status == MatchStatus.UNMATCHED:
+            click.echo(f"{photo.path} -> skipped (no matching calendar event)")
+        elif dry_run:
             from .organizer import build_target_dir
 
             click.echo(f"{photo.path} -> {build_target_dir(config, photo, match)}")

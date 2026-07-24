@@ -67,7 +67,8 @@ files-organizer/
 │   └── cli.py                # `files-organizer --config config.yaml [--dry-run]`
 ├── tests/                    # testy pytest
 ├── examples/sample.ics       # przykładowy kalendarz do testów
-└── data/{input,output}/      # domyślne katalogi wejścia/wyjścia (gitignored)
+├── data/{input,output}/      # domyślne katalogi wejścia/wyjścia (gitignored)
+└── scripts/setup-git.sh      # konfiguracja tożsamości git (patrz niżej)
 ```
 
 ## Uruchomienie
@@ -78,3 +79,17 @@ cp config.example.yaml config.yaml
 files-organizer --config config.yaml --dry-run
 pytest
 ```
+
+## Przygotowanie do pracy z git
+
+GitHub blokuje push, jeśli commity zawierają prywatny e-mail (błąd `GH007`).
+Przed pierwszym commitem w tym repo uruchom:
+
+```
+./scripts/setup-git.sh                 # auto-wykrycie przez `gh` CLI
+./scripts/setup-git.sh <github-login>  # albo podaj login ręcznie
+```
+
+Ustawi to `git config user.email/user.name` (lokalnie, tylko dla tego repo)
+na Twój adres `users.noreply.github.com`. Skrypt jest generyczny — bez zmian
+można go skopiować do innych projektów.

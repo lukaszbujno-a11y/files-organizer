@@ -19,3 +19,10 @@ class Photo:
     path: Path
     taken_at: datetime | None
     camera_model: str | None = None
+
+
+@dataclass(frozen=True)
+class RecognizedPerson:
+    name: str
+    confidence: float
+    bbox: tuple[int, int, int, int]  # x, y, width, height

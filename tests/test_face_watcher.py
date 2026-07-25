@@ -32,9 +32,12 @@ def _wait_until(predicate, timeout=5.0, interval=0.05) -> bool:
     return predicate()
 
 
-def _run_watcher(input_dir, recognizer, stop_event):
+def _run_watcher(input_dir, recognizer, stop_event, log=None, dry_run=False):
     watcher_thread = threading.Thread(
-        target=watch_for_faces, args=(input_dir, recognizer, lambda msg: None, stop_event), daemon=True
+        target=watch_for_faces,
+        args=(input_dir, recognizer, log or (lambda msg: None), stop_event),
+        kwargs={"dry_run": dry_run},
+        daemon=True,
     )
     watcher_thread.start()
     time.sleep(0.3)  # let the observer start watching before any file appears
@@ -66,6 +69,24 @@ def test_watch_for_faces_ignores_unsupported_files(tmp_path):
         time.sleep(0.5)
 
         assert recognizer.paths == []
+    finally:
+        stop_event.set()
+        watcher_thread.join(timeout=5)
+
+
+def test_watch_for_faces_dry_run_does_not_write_tags(tmp_path):
+    recognizer = FakeRecognizer([RecognizedPerson(name="Anna", confidence=0.9, bbox=(0, 0, 1, 1))])
+    stop_event = threading.Event()
+    log_messages: list[str] = []
+    watcher_thread = _run_watcher(tmp_path, recognizer, stop_event, log=log_messages.append, dry_run=True)
+
+    try:
+        photo = tmp_path / "new.jpg"
+        _make_jpeg(photo)
+
+        assert _wait_until(lambda: len(recognizer.paths) == 1)
+        assert any("dry-run" in message and "Anna" in message for message in log_messages)
+        assert read_tagged_people(photo) == []
     finally:
         stop_event.set()
         watcher_thread.join(timeout=5)

@@ -28,6 +28,7 @@ class OrganizerApp:
         self.config = config
         self.log_queue: queue.Queue[object] = queue.Queue()
         self.worker: threading.Thread | None = None
+        self.stop_event: threading.Event | None = None
 
         root.title("Files Organizer")
         root.geometry("760x560")
@@ -86,6 +87,8 @@ class OrganizerApp:
         ttk.Label(actions_frame, textvariable=self.status_var).pack(side="left")
         self.run_button = ttk.Button(actions_frame, text="Uruchom", command=self._on_run)
         self.run_button.pack(side="right")
+        self.stop_button = ttk.Button(actions_frame, text="Zatrzymaj", command=self._on_stop, state="disabled")
+        self.stop_button.pack(side="right", padx=(0, 8))
 
     def _path_row(self, parent: ttk.LabelFrame, label: str, var: tk.StringVar, row: int) -> None:
         ttk.Label(parent, text=label).grid(row=row, column=0, sticky="w", padx=8, pady=4)
@@ -135,6 +138,7 @@ class OrganizerApp:
                 message = self.log_queue.get_nowait()
                 if message is _DONE:
                     self.run_button.configure(state="normal")
+                    self.stop_button.configure(state="disabled")
                     self.status_var.set("Gotowy.")
                 elif isinstance(message, str) and message.startswith("ERROR:"):
                     messagebox.showerror("Błąd", message[len("ERROR:") :])
@@ -184,14 +188,28 @@ class OrganizerApp:
         self.log_widget.configure(state="disabled")
 
         self.run_button.configure(state="disabled")
+        self.stop_button.configure(state="normal")
         self.status_var.set("Trwa podgląd…" if dry_run else "Trwa kopiowanie/przenoszenie…")
-        self.worker = threading.Thread(target=self._run_worker, args=(run_config, dry_run), daemon=True)
+        self.stop_event = threading.Event()
+        self.worker = threading.Thread(
+            target=self._run_worker, args=(run_config, dry_run, self.stop_event), daemon=True
+        )
         self.worker.start()
 
-    def _run_worker(self, run_config: Config, dry_run: bool) -> None:
+    def _on_stop(self) -> None:
+        if self.stop_event is None:
+            return
+        self.stop_event.set()
+        self.stop_button.configure(state="disabled")
+        self.status_var.set("Zatrzymywanie… (bieżący plik zostanie dokończony)")
+
+    def _run_worker(self, run_config: Config, dry_run: bool, stop_event: threading.Event) -> None:
         try:
-            run_pipeline(run_config, dry_run, log=self.log_queue.put)
-            self.log_queue.put("Podgląd zakończony." if dry_run else "Zakończono.")
+            run_pipeline(run_config, dry_run, log=self.log_queue.put, stop_event=stop_event)
+            if stop_event.is_set():
+                self.log_queue.put("Zatrzymano na życzenie użytkownika.")
+            else:
+                self.log_queue.put("Podgląd zakończony." if dry_run else "Zakończono.")
         except Exception as exc:
             self.log_queue.put(f"ERROR:{exc}")
         finally:

@@ -110,7 +110,12 @@ Otwiera okno, w którym można:
 - wskazać/edytować katalog źródłowy i docelowy (pola tekstowe + przyciski „Wybierz…”),
 - wybrać plik `config.yaml` i wczytać go do formularza,
 - przełączyć tryb **kopiuj / przenieś** oraz margines dopasowania i podgląd (dry-run),
-- uruchomić akcję przyciskiem „Uruchom” i obserwować log kopiowania/przenoszenia na żywo.
+- uruchomić akcję przyciskiem „Uruchom” i obserwować log kopiowania/przenoszenia na żywo,
+- bezpiecznie przerwać akcję przyciskiem „Zatrzymaj” — bieżący plik jest zawsze dokańczany,
+  zatrzymanie następuje dopiero przed kolejnym plikiem, więc nic nie zostaje w połowie skopiowane.
+
+W trybie terminalowym (bez `--gui`) działa to samo zabezpieczenie pod Ctrl+C: pierwsze
+Ctrl+C kończy bieżący plik i zatrzymuje się, drugie przerywa natychmiast.
 
 GUI wymaga Tkinter. Na macOS z Pythonem z Homebrew doinstaluj obsługę Tk (dopasuj wersję
 do swojego Pythona):

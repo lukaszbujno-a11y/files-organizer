@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import signal
+import threading
 from dataclasses import replace
 from pathlib import Path
 
@@ -36,7 +38,21 @@ def main(config_path: str, input_dir: Path | None, output_dir: Path | None, gui:
         if volume is not None:
             raise click.UsageError(f"Katalog {label} ({path}) jest na dysku, który nie jest podłączony: {volume} nie istnieje.")
 
-    run_pipeline(config, dry_run, log=click.echo)
+    stop_event = threading.Event()
+
+    def handle_sigint(signum, frame):
+        if stop_event.is_set():
+            # second Ctrl+C: give up waiting and let the default handler abort immediately
+            signal.signal(signal.SIGINT, signal.default_int_handler)
+            return
+        stop_event.set()
+        click.echo("\nZatrzymywanie… (bieżący plik zostanie dokończony; Ctrl+C ponownie, aby przerwać natychmiast)")
+
+    signal.signal(signal.SIGINT, handle_sigint)
+
+    run_pipeline(config, dry_run, log=click.echo, stop_event=stop_event)
+    if stop_event.is_set():
+        click.echo("Zatrzymano na życzenie użytkownika.")
 
 
 if __name__ == "__main__":

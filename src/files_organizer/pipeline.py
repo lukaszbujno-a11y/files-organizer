@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from typing import Callable
 
 from .calendar_sources import get_calendar_source
@@ -11,11 +12,16 @@ from .organizer import build_target_dir, place_photo
 LogFn = Callable[[str], None]
 
 
-def run_pipeline(config: Config, dry_run: bool, log: LogFn) -> None:
+def run_pipeline(config: Config, dry_run: bool, log: LogFn, stop_event: threading.Event | None = None) -> None:
     """Match every media file under config.input_dir to a calendar event and file it away.
 
     Shared between the CLI loop and the GUI's background worker thread; `log` receives
     one line per processed file so both can render it (terminal echo / GUI log widget).
+
+    `stop_event`, if given, is checked *between* files only, never mid-copy/move — so a
+    requested stop always leaves the file system in a consistent state (every file that
+    was started is finished; nothing is left half-copied). The caller is responsible for
+    reporting whether the run ended early (`stop_event.is_set()` after this returns).
     """
     events = []
     if config.calendar:
@@ -23,6 +29,9 @@ def run_pipeline(config: Config, dry_run: bool, log: LogFn) -> None:
         events = calendar_source.get_events()
 
     for path in iter_media_files(config.input_dir):
+        if stop_event is not None and stop_event.is_set():
+            return
+
         photo = read_photo_metadata(path)
         match = match_photo_to_event(photo, events, margin_hours=config.margin_hours)
 

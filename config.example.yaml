@@ -28,7 +28,9 @@ calendar:
 
 # Opcjonalne rozdzielenie na katalog nadrzędny na podstawie
 # tagu wydarzenia w kalendarzu i modelu telefonu z EXIF.
+# Dla kalendarza Google tag to hashtag w tytule lub opisie wydarzenia,
+# np. "#Ania" -> klucz "Ania" poniżej (bez #).
 phone_mapping:
-  # tag_z_kalendarza:
+  # Ania:
   #   camera_model: "iPhone 15 Pro"
   #   parent_dir: "Ania"

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -7,6 +8,8 @@ from ..models import Event
 from .base import CalendarSource
 
 SCOPES = ["https://www.googleapis.com/auth/calendar.events.readonly"]
+
+_HASHTAG_RE = re.compile(r"#(\w+)")
 
 
 class GoogleCalendarSource(CalendarSource):
@@ -65,8 +68,23 @@ def _to_event(item: dict) -> Event:
         start=_parse_datetime(item["start"]),
         end=_parse_datetime(item["end"]),
         location=item.get("location"),
-        tag=next(iter(item.get("extendedProperties", {}).get("private", {}).values()), None),
+        tag=_extract_tag(item),
     )
+
+
+def _extract_tag(item: dict) -> str | None:
+    """Tag comes from a `#tag` hashtag in the title or description.
+
+    `extendedProperties` (the "proper" place for metadata) isn't settable
+    from the Google Calendar UI, only via the API, so it's useless for a
+    human tagging their own events. A hashtag is something anyone can type
+    in the title while creating an event.
+    """
+    for text in (item.get("summary", ""), item.get("description", "")):
+        match = _HASHTAG_RE.search(text)
+        if match:
+            return match.group(1)
+    return None
 
 
 def _parse_datetime(value: dict) -> datetime:

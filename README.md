@@ -58,7 +58,7 @@ files-organizer/
 ├── pyproject.toml          # zależności, konfiguracja pytest
 ├── config.example.yaml     # przykładowa konfiguracja (skopiuj do config.yaml)
 ├── src/files_organizer/
-│   ├── models.py            # Event, Photo
+│   ├── models.py            # Event, Photo, RecognizedPerson
 │   ├── exif_reader.py       # odczyt EXIF przez exiftool (data, model aparatu)
 │   ├── calendar_sources/    # ICS / Google / Outlook
 │   ├── matcher.py           # dopasowanie zdjęcia do wydarzenia
@@ -66,7 +66,11 @@ files-organizer/
 │   ├── config.py            # wczytywanie config.yaml
 │   ├── pipeline.py          # pętla dopasowanie->kopiowanie, współdzielona przez CLI i GUI
 │   ├── gui.py               # okno graficzne (Tkinter): ścieżki, tryb, config, log
-│   └── cli.py                # `files-organizer --config config.yaml [--dry-run] [--gui]`
+│   ├── cli.py               # `files-organizer --config config.yaml [--dry-run] [--gui]`
+│   ├── face_recognizers/    # FaceRecognizer ← DeepFaceRecognizer (detektor/embedder/known faces)
+│   ├── metadata.py          # odczyt/zapis tagów osób w zdjęciu przez exiftool
+│   ├── face_watcher.py      # watcher (watchdog) + kolejka + worker tagujący twarze na bieżąco
+│   └── face_cli.py          # `files-organizer-faces --config config.yaml`
 ├── tests/                    # testy pytest
 ├── examples/sample.ics       # przykładowy kalendarz do testów
 ├── data/{input,output}/      # domyślne katalogi wejścia/wyjścia (gitignored)
@@ -126,6 +130,43 @@ brew install python-tk@3.12
 
 Bez `config.yaml` (lub bez sekcji `calendar` w configu) zdjęcia nie są
 dopasowywane do wydarzeń kalendarza — trafiają do katalogu `Nieprzypisane`.
+
+## Rozpoznawanie twarzy (proces w tle)
+
+Osobny, długo działający proces (niezależny od `files-organizer`/`run_pipeline`) obserwuje
+`input_dir` i taguje nowe zdjęcia znanymi osobami na bieżąco, w miarę jak trafiają do katalogu.
+Całe przetwarzanie (detekcja i rozpoznawanie twarzy) odbywa się wyłącznie lokalnie — zdjęcia
+ani dane z nich wyekstrahowane nie są nigdzie wysyłane.
+
+```
+pip install -e ".[face_recognition]"
+```
+
+Skonfiguruj sekcję `face_recognition` w `config.yaml` (patrz `config.example.yaml`) i przygotuj
+katalog referencyjny ze zdjęciami znanych osób:
+
+```
+known_faces/
+    Anna/
+        1.jpg
+        2.jpg
+    Bartek/
+        1.jpg
+```
+
+Uruchomienie:
+
+```
+files-organizer-faces --config config.yaml
+```
+
+Rozpoznane osoby są zapisywane jako słowa kluczowe `Person:<Imię>` (IPTC/XMP Keywords) w pliku
+zdjęcia — dopisywane, nigdy nadpisywane, więc ponowne wykrycie tej samej osoby jest bezpieczne.
+Embeddingi zdjęć referencyjnych są cache'owane (`known_faces_dir/cache/embeddings.pkl`) i
+przeliczane tylko wtedy, gdy dany plik referencyjny się zmienił.
+
+Pierwsze uruchomienie modelu `deepface` wymaga jednorazowego połączenia z internetem, żeby
+pobrać wagi modelu (same wagi, żadne dane użytkownika).
 
 ## Przygotowanie do pracy z git
 

@@ -25,16 +25,43 @@
    - Osobny, długo działający proces w tle (watcher, np. przez bibliotekę
      `watchdog`), obserwujący `input_dir` i tagujący nowe pliki na bieżąco —
      niezależny od jednorazowego pipeline'u kalendarzowego (`run_pipeline`).
-   - Rozpoznawanie twarzy schowane za interfejsem `FaceRecognizer`
-     (analogicznie do `CalendarSource` w `calendar_sources/`), żeby bibliotekę
-     rozpoznającą można było w przyszłości łatwo podmienić bez zmian w reszcie
-     kodu. Domyślny backend: `deepface` (czysta biblioteka Python, instalacja
-     bez kompilacji C/C++, wagi modeli pobierane raz przy pierwszym użyciu i
-     trzymane lokalnie).
    - Konfiguracja backendu w `config.yaml`, sekcja `face_recognition` (wzorem
      sekcji `calendar`), z polem `type` wybierającym implementację.
    - Enrollment znanych osób: katalog referencyjny `known_faces/<Osoba>/*.jpg`,
      ścieżka konfigurowalna w `face_recognition`.
-   - Wynik rozpoznania zapisywany jako tag w samym pliku (EXIF/IPTC Keywords /
-     XMP Subject) przez `exiftool` — wymaga dopisania funkcji **zapisu**
-     metadanych (dziś `exif_reader.py` tylko czyta).
+
+   Architektura (uszczegółowiona po przeglądzie):
+   - Interfejs `FaceRecognizer` całkowicie niezależny od konkretnej
+     biblioteki — reszta aplikacji zna tylko ten interfejs, nigdy DeepFace
+     bezpośrednio (`FaceRecognizer` ← `DeepFaceRecognizer`, analogicznie do
+     `CalendarSource` ← `IcsCalendarSource`).
+   - Wewnątrz rozpoznawanie rozbite na wymienne niezależnie etapy:
+     zdjęcie → detekcja twarzy (`FaceDetector`) → embedding (`FaceEmbedder`)
+     → porównanie z bazą znanych osób (`KnownFacesIndex`) → wynik.
+     Domyślna implementacja (`DeepFaceRecognizer`) realizuje wszystkie etapy
+     przez `deepface`, ale sam detektor da się później podmienić osobno.
+   - Wynik rozpoznania to `list[RecognizedPerson]` (dataclass: `name`,
+     `confidence`, `bbox`), nie pojedynczy string — na zdjęciu może być
+     kilka osób naraz.
+   - Enrollment cache'owany: `known_faces/cache/embeddings.pkl` (lub
+     `.index`). Przy starcie porównaj daty modyfikacji plików referencyjnych
+     z cache — przebuduj indeks tylko gdy coś się zmieniło, żeby nie liczyć
+     embeddingów od nowa przy każdym uruchomieniu.
+   - Watcher nie rozpoznaje twarzy bezpośrednio w callbacku `watchdog`:
+     `watchdog` → kolejka (`Queue`) → worker → `FaceRecognizer` →
+     `MetadataWriter`. Zabezpiecza to przed zalaniem workera, gdy użytkownik
+     kopiuje naraz setki zdjęć.
+   - Odczyt/zapis tagów w osobnym module `metadata.py` (`read_tags`,
+     `write_tags` przez `exiftool`) zamiast rozszerzania `exif_reader.py`,
+     którego nazwa sugeruje tylko odczyt — czy scalić z `exif_reader.py`,
+     czy zostawić osobno, do ustalenia przy implementacji.
+   - Nazwa tagu z namespace'em, np. `Person:Anna` / `People:Anna` (osobne
+     pole XMP), żeby nie kolidować z innymi słowami kluczowymi w pliku.
+
+   Do doprecyzowania:
+   - Lokalność a pobranie wag modelu: pierwsze uruchomienie `deepface`
+     wymaga jednorazowego połączenia z internetem, żeby pobrać pliki modelu
+     (żadne dane użytkownika nie są wysyłane, tylko wagi ściągane).
+     Do ustalenia: czy to akceptowalne, czy wymagane jest działanie w 100%
+     offline od pierwszego uruchomienia (wtedy wagi trzeba dostarczyć razem
+     z instalacją albo pobrać ręcznie wcześniej, wg osobnej instrukcji).

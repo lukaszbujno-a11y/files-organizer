@@ -34,8 +34,8 @@ class OrganizerApp:
         self.stop_event: threading.Event | None = None
 
         root.title("Files Organizer")
-        root.geometry("760x560")
-        root.minsize(600, 420)
+        root.geometry("760x600")
+        root.minsize(600, 460)
 
         self.config_path_var = tk.StringVar(value=config_path)
         self.input_var = tk.StringVar(value=str(config.input_dir))
@@ -82,6 +82,14 @@ class OrganizerApp:
             row=0, column=5, sticky="w", **pad
         )
 
+        actions_frame = ttk.Frame(self.root)
+        actions_frame.pack(side="bottom", fill="x", **pad)
+        ttk.Label(actions_frame, textvariable=self.status_var).pack(side="left")
+        self.run_button = ttk.Button(actions_frame, text="Uruchom", command=self._on_run)
+        self.run_button.pack(side="right")
+        self.stop_button = ttk.Button(actions_frame, text="Zatrzymaj", command=self._on_stop, state="disabled")
+        self.stop_button.pack(side="right", padx=(0, 8))
+
         notebook = ttk.Notebook(self.root)
         notebook.pack(fill="both", expand=True, **pad)
 
@@ -93,14 +101,6 @@ class OrganizerApp:
         calendar_frame = ttk.Frame(notebook)
         notebook.add(calendar_frame, text="Kalendarz")
         self._build_calendar_tab(calendar_frame)
-
-        actions_frame = ttk.Frame(self.root)
-        actions_frame.pack(fill="x", **pad)
-        ttk.Label(actions_frame, textvariable=self.status_var).pack(side="left")
-        self.run_button = ttk.Button(actions_frame, text="Uruchom", command=self._on_run)
-        self.run_button.pack(side="right")
-        self.stop_button = ttk.Button(actions_frame, text="Zatrzymaj", command=self._on_stop, state="disabled")
-        self.stop_button.pack(side="right", padx=(0, 8))
 
     def _build_calendar_tab(self, parent: ttk.Frame) -> None:
         toolbar = ttk.Frame(parent)

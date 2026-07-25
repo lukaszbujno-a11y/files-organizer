@@ -2,6 +2,10 @@
 
 input_dir: "./data/input"
 output_dir: "./data/output"
+# Aby domyślnie zapisywać na podłączony dysk zewnętrzny (macOS montuje
+# dyski pod /Volumes), ustaw output_dir na ścieżkę na tym dysku, np.:
+# output_dir: "/Volumes/NazwaDysku/Zdjecia"
+# Jeśli dysk nie jest podłączony, uruchomienie zakończy się czytelnym błędem.
 unmatched_dir_name: "Nieprzypisane"
 overlap_dir_name: "Niedopasowane"
 

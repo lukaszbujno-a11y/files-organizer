@@ -8,7 +8,7 @@ def test_load_config_parses_face_recognition_section(tmp_path):
 input_dir: "./data/input"
 output_dir: "./data/output"
 face_recognition:
-  type: "deepface"
+  type: "insightface"
   known_faces_dir: "./known_faces"
   threshold: 0.35
 """
@@ -17,7 +17,7 @@ face_recognition:
     config = load_config(config_path)
 
     assert config.face_recognition == {
-        "type": "deepface",
+        "type": "insightface",
         "known_faces_dir": "./known_faces",
         "threshold": 0.35,
     }

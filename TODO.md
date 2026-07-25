@@ -12,9 +12,10 @@
    Nazwę kraju/miasta ustalić na podstawie reverse geocodingu współrzędnych
    GPS z EXIF.
 
-2. Aplikacja uruchomiona w tle do wykrywania osób na zdjęciach (rozpoznawanie
-   twarzy). Po wykryciu znanej osoby dodać tag do zdjęcia (np. do metadanych
-   EXIF/IPTC lub do słownika osoba → katalog, analogicznie do `phone_mapping`).
+2. [Zaimplementowane] Aplikacja uruchomiona w tle do wykrywania osób na zdjęciach
+   (rozpoznawanie twarzy). Po wykryciu znanej osoby dodaje tag do zdjęcia (metadane
+   IPTC/XMP Keywords, `Person:<Imię>`). Zobacz `files-organizer-faces` w README.md,
+   moduły `face_recognizers/`, `metadata.py`, `face_watcher.py`, `face_cli.py`.
 
    Założenie: przetwarzanie zdjęć (rozpoznawanie twarzy) musi odbywać się
    wyłącznie lokalnie na komputerze użytkownika — zdjęcia ani dane z nich
@@ -53,10 +54,13 @@
      kopiuje naraz setki zdjęć.
    - Odczyt/zapis tagów w osobnym module `metadata.py` (`read_tags`,
      `write_tags` przez `exiftool`) zamiast rozszerzania `exif_reader.py`,
-     którego nazwa sugeruje tylko odczyt — czy scalić z `exif_reader.py`,
-     czy zostawić osobno, do ustalenia przy implementacji.
-   - Nazwa tagu z namespace'em, np. `Person:Anna` / `People:Anna` (osobne
-     pole XMP), żeby nie kolidować z innymi słowami kluczowymi w pliku.
+     którego nazwa sugeruje tylko odczyt. Zostawione osobno — `exif_reader.py`
+     dalej odczytuje tylko datę/model aparatu, `metadata.py` czyta i dopisuje
+     tagi osób.
+   - Nazwa tagu z namespace'em: `Person:Anna` jako wartość pola Keywords
+     (IPTC + XMP-dc:Subject) — bez własnej schemy XMP (wymagałaby pliku
+     konfiguracyjnego exiftool), żeby nie kolidować z innymi słowami
+     kluczowymi w pliku.
 
    Do doprecyzowania:
    - Lokalność a pobranie wag modelu: pierwsze uruchomienie `deepface`

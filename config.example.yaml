@@ -34,3 +34,17 @@ phone_mapping:
   # Ania:
   #   camera_model: "iPhone 15 Pro"
   #   parent_dir: "Ania"
+
+# Rozpoznawanie twarzy w tle (`files-organizer-faces --config config.yaml`).
+# Wymaga `pip install -e ".[face_recognition]"`. Przetwarzanie odbywa się
+# wyłącznie lokalnie - żadne zdjęcia ani dane z nich nie są wysyłane poza
+# ten komputer (pierwsze uruchomienie deepface pobiera jednorazowo z sieci
+# tylko wagi modelu, nie dane użytkownika).
+# face_recognition:
+#   type: "deepface"
+#   # Katalog ze zdjęciami referencyjnymi: known_faces/<Osoba>/*.jpg
+#   known_faces_dir: "./known_faces"
+#   # Opcjonalnie: gdzie trzymać cache embeddingów (domyślnie known_faces_dir/cache/embeddings.pkl)
+#   cache_path: "./known_faces/cache/embeddings.pkl"
+#   # Próg odległości kosinusowej - im niższy, tym bardziej rygorystyczne dopasowanie
+#   threshold: 0.4

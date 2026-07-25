@@ -226,3 +226,6 @@ data/output/*
 credentials.json
 token.json
 o365_token.txt
+
+# reference photos of real people for face recognition - never commit these
+known_faces/

@@ -3,7 +3,7 @@ from __future__ import annotations
 import threading
 from typing import Callable
 
-from .calendar_sources import get_calendar_source
+from .calendar_sources import filter_events_by_tag, get_calendar_source
 from .config import Config
 from .exif_reader import iter_media_files, read_photo_metadata
 from .matcher import MatchStatus, match_photo_to_event
@@ -26,7 +26,7 @@ def run_pipeline(config: Config, dry_run: bool, log: LogFn, stop_event: threadin
     events = []
     if config.calendar:
         calendar_source = get_calendar_source(config.calendar)
-        events = calendar_source.get_events()
+        events = filter_events_by_tag(calendar_source.get_events(), config.include_tags)
 
     for path in iter_media_files(config.input_dir):
         if stop_event is not None and stop_event.is_set():

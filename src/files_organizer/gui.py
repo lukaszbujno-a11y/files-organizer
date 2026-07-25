@@ -7,7 +7,7 @@ from pathlib import Path
 
 import click
 
-from .calendar_sources import get_calendar_source
+from .calendar_sources import filter_events_by_tag, get_calendar_source
 from .config import Config, load_config
 from .models import Event
 from .pipeline import run_pipeline
@@ -177,7 +177,7 @@ class OrganizerApp:
         # Tkinter widgets may only be touched from the main thread, so results go
         # through the same queue + polling pattern as the pipeline log (see _poll_log_queue).
         try:
-            events = get_calendar_source(calendar_config).get_events()
+            events = filter_events_by_tag(get_calendar_source(calendar_config).get_events(), self.config.include_tags)
         except Exception as exc:
             self.calendar_queue.put(("error", str(exc)))
             return

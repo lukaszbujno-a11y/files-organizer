@@ -1,7 +1,21 @@
+from ..models import Event
 from .base import CalendarSource
 from .ics_source import IcsCalendarSource
 
-__all__ = ["CalendarSource", "IcsCalendarSource"]
+__all__ = ["CalendarSource", "IcsCalendarSource", "get_calendar_source", "filter_events_by_tag"]
+
+
+def filter_events_by_tag(events: list[Event], include_tags: list[str] | None) -> list[Event]:
+    """Keep only events whose tag is in `include_tags`.
+
+    `include_tags` is an allowlist rather than a blocklist: calendars mix real
+    events with reminders/tasks that carry no useful tag, so listing the tags
+    that *do* represent photo-worthy events is more robust than trying to name
+    every kind of noise to exclude. `None` (not configured) keeps everything.
+    """
+    if include_tags is None:
+        return events
+    return [event for event in events if event.tag in include_tags]
 
 
 def get_calendar_source(config: dict) -> CalendarSource:

@@ -160,6 +160,13 @@ Uruchomienie:
 files-organizer-faces --config config.yaml
 ```
 
+Podgląd bez zapisu (`--dry-run`) rozpoznaje twarze i pokazuje w logu, jaki tag zostałby dodany
+do każdego pliku, ale nic nie zapisuje do zdjęć:
+
+```
+files-organizer-faces --config config.yaml --dry-run
+```
+
 Rozpoznane osoby są zapisywane jako słowa kluczowe `Person:<Imię>` (IPTC/XMP Keywords) w pliku
 zdjęcia — dopisywane, nigdy nadpisywane, więc ponowne wykrycie tej samej osoby jest bezpieczne.
 Embeddingi zdjęć referencyjnych są cache'owane (`known_faces_dir/cache/embeddings.pkl`) i

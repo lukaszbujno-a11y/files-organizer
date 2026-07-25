@@ -7,7 +7,9 @@ from pathlib import Path
 
 import click
 
+from .calendar_sources import get_calendar_source
 from .config import Config, load_config
+from .models import Event
 from .pipeline import run_pipeline
 from .volumes import missing_volume
 
@@ -27,6 +29,7 @@ class OrganizerApp:
         self.root = root
         self.config = config
         self.log_queue: queue.Queue[object] = queue.Queue()
+        self.calendar_queue: queue.Queue[tuple[str, object]] = queue.Queue()
         self.worker: threading.Thread | None = None
         self.stop_event: threading.Event | None = None
 
@@ -44,6 +47,8 @@ class OrganizerApp:
 
         self._build_widgets()
         self._poll_log_queue()
+        self._poll_calendar_queue()
+        self._load_calendar_preview()
 
     def _build_widgets(self) -> None:
         pad = {"padx": 8, "pady": 4}
@@ -77,10 +82,17 @@ class OrganizerApp:
             row=0, column=5, sticky="w", **pad
         )
 
-        log_frame = ttk.LabelFrame(self.root, text="Log")
-        log_frame.pack(fill="both", expand=True, **pad)
+        notebook = ttk.Notebook(self.root)
+        notebook.pack(fill="both", expand=True, **pad)
+
+        log_frame = ttk.Frame(notebook)
+        notebook.add(log_frame, text="Log")
         self.log_widget = scrolledtext.ScrolledText(log_frame, state="disabled", height=18, wrap="none")
         self.log_widget.pack(fill="both", expand=True)
+
+        calendar_frame = ttk.Frame(notebook)
+        notebook.add(calendar_frame, text="Kalendarz")
+        self._build_calendar_tab(calendar_frame)
 
         actions_frame = ttk.Frame(self.root)
         actions_frame.pack(fill="x", **pad)
@@ -89,6 +101,28 @@ class OrganizerApp:
         self.run_button.pack(side="right")
         self.stop_button = ttk.Button(actions_frame, text="Zatrzymaj", command=self._on_stop, state="disabled")
         self.stop_button.pack(side="right", padx=(0, 8))
+
+    def _build_calendar_tab(self, parent: ttk.Frame) -> None:
+        toolbar = ttk.Frame(parent)
+        toolbar.pack(fill="x", padx=4, pady=4)
+        self.calendar_status_var = tk.StringVar(value="Brak wczytanego kalendarza.")
+        ttk.Label(toolbar, textvariable=self.calendar_status_var).pack(side="left")
+        self.calendar_refresh_button = ttk.Button(toolbar, text="Odśwież", command=self._load_calendar_preview)
+        self.calendar_refresh_button.pack(side="right")
+
+        columns = ("name", "start", "end", "location", "tag")
+        headings = {"name": "Nazwa", "start": "Start", "end": "Koniec", "location": "Lokalizacja", "tag": "Tag"}
+        widths = {"name": 200, "start": 130, "end": 130, "location": 140, "tag": 100}
+
+        self.calendar_tree = ttk.Treeview(parent, columns=columns, show="headings", height=12)
+        for col in columns:
+            self.calendar_tree.heading(col, text=headings[col])
+            self.calendar_tree.column(col, width=widths[col], anchor="w")
+
+        scrollbar = ttk.Scrollbar(parent, orient="vertical", command=self.calendar_tree.yview)
+        self.calendar_tree.configure(yscrollcommand=scrollbar.set)
+        self.calendar_tree.pack(side="left", fill="both", expand=True, padx=(4, 0), pady=(0, 4))
+        scrollbar.pack(side="right", fill="y", pady=(0, 4))
 
     def _path_row(self, parent: ttk.LabelFrame, label: str, var: tk.StringVar, row: int) -> None:
         ttk.Label(parent, text=label).grid(row=row, column=0, sticky="w", padx=8, pady=4)
@@ -125,6 +159,65 @@ class OrganizerApp:
         self.mode_var.set(config.mode)
         self.margin_var.set(str(config.margin_hours))
         self._append_log(f"Wczytano konfigurację: {path}")
+        self._load_calendar_preview()
+
+    def _load_calendar_preview(self) -> None:
+        calendar_config = self.config.calendar
+        self._clear_calendar_tree()
+
+        if not calendar_config:
+            self.calendar_status_var.set("Konfiguracja nie zawiera kalendarza.")
+            return
+
+        self.calendar_status_var.set("Wczytywanie kalendarza…")
+        self.calendar_refresh_button.configure(state="disabled")
+        threading.Thread(target=self._fetch_calendar_events, args=(calendar_config,), daemon=True).start()
+
+    def _fetch_calendar_events(self, calendar_config: dict) -> None:
+        # Tkinter widgets may only be touched from the main thread, so results go
+        # through the same queue + polling pattern as the pipeline log (see _poll_log_queue).
+        try:
+            events = get_calendar_source(calendar_config).get_events()
+        except Exception as exc:
+            self.calendar_queue.put(("error", str(exc)))
+            return
+        self.calendar_queue.put(("loaded", events))
+
+    def _poll_calendar_queue(self) -> None:
+        try:
+            while True:
+                kind, payload = self.calendar_queue.get_nowait()
+                if kind == "loaded":
+                    self._on_calendar_loaded(payload)
+                else:
+                    self._on_calendar_error(payload)
+        except queue.Empty:
+            pass
+        self.root.after(100, self._poll_calendar_queue)
+
+    def _on_calendar_loaded(self, events: list[Event]) -> None:
+        for event in sorted(events, key=lambda e: e.start):
+            self.calendar_tree.insert(
+                "",
+                "end",
+                values=(
+                    event.name,
+                    f"{event.start:%Y-%m-%d %H:%M}",
+                    f"{event.end:%Y-%m-%d %H:%M}",
+                    event.location or "",
+                    event.tag or "",
+                ),
+            )
+        self.calendar_status_var.set(f"Wczytano {len(events)} wydarzeń.")
+        self.calendar_refresh_button.configure(state="normal")
+
+    def _on_calendar_error(self, message: str) -> None:
+        self.calendar_status_var.set(f"Błąd wczytywania kalendarza: {message}")
+        self.calendar_refresh_button.configure(state="normal")
+
+    def _clear_calendar_tree(self) -> None:
+        for item in self.calendar_tree.get_children():
+            self.calendar_tree.delete(item)
 
     def _append_log(self, message: str) -> None:
         self.log_widget.configure(state="normal")

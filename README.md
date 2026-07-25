@@ -64,7 +64,9 @@ files-organizer/
 │   ├── matcher.py           # dopasowanie zdjęcia do wydarzenia
 │   ├── organizer.py         # budowa struktury katalogów, kopiowanie/przenoszenie
 │   ├── config.py            # wczytywanie config.yaml
-│   └── cli.py                # `files-organizer --config config.yaml [--dry-run]`
+│   ├── pipeline.py          # pętla dopasowanie->kopiowanie, współdzielona przez CLI i GUI
+│   ├── gui.py               # okno graficzne (Tkinter): ścieżki, tryb, config, log
+│   └── cli.py                # `files-organizer --config config.yaml [--dry-run] [--gui]`
 ├── tests/                    # testy pytest
 ├── examples/sample.ics       # przykładowy kalendarz do testów
 ├── data/{input,output}/      # domyślne katalogi wejścia/wyjścia (gitignored)
@@ -96,6 +98,25 @@ files-organizer --dry-run
 
 # jawne wskazanie katalogów (nadpisuje config.yaml, jeśli istnieje)
 files-organizer --input-dir /sciezka/ze/zdjeciami --output-dir /sciezka/wynikowa --dry-run
+```
+
+## Tryb graficzny (GUI)
+
+```
+files-organizer --gui
+```
+
+Otwiera okno, w którym można:
+- wskazać/edytować katalog źródłowy i docelowy (pola tekstowe + przyciski „Wybierz…”),
+- wybrać plik `config.yaml` i wczytać go do formularza,
+- przełączyć tryb **kopiuj / przenieś** oraz margines dopasowania i podgląd (dry-run),
+- uruchomić akcję przyciskiem „Uruchom” i obserwować log kopiowania/przenoszenia na żywo.
+
+GUI wymaga Tkinter. Na macOS z Pythonem z Homebrew doinstaluj obsługę Tk (dopasuj wersję
+do swojego Pythona):
+
+```
+brew install python-tk@3.12
 ```
 
 Bez `config.yaml` (lub bez sekcji `calendar` w configu) zdjęcia nie są

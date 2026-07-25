@@ -33,14 +33,20 @@
 
    Architektura (uszczegółowiona po przeglądzie):
    - Interfejs `FaceRecognizer` całkowicie niezależny od konkretnej
-     biblioteki — reszta aplikacji zna tylko ten interfejs, nigdy DeepFace
-     bezpośrednio (`FaceRecognizer` ← `DeepFaceRecognizer`, analogicznie do
+     biblioteki — reszta aplikacji zna tylko ten interfejs, nigdy insightface
+     bezpośrednio (`FaceRecognizer` ← `InsightFaceRecognizer`, analogicznie do
      `CalendarSource` ← `IcsCalendarSource`).
    - Wewnątrz rozpoznawanie rozbite na wymienne niezależnie etapy:
      zdjęcie → detekcja twarzy (`FaceDetector`) → embedding (`FaceEmbedder`)
      → porównanie z bazą znanych osób (`KnownFacesIndex`) → wynik.
-     Domyślna implementacja (`DeepFaceRecognizer`) realizuje wszystkie etapy
-     przez `deepface`, ale sam detektor da się później podmienić osobno.
+     Domyślna implementacja (`InsightFaceRecognizer`) realizuje wszystkie etapy
+     przez `insightface` (pakiet modeli `buffalo_l`, tylko moduły `detection` +
+     `recognition` — bez wieku/płci/landmarków, żeby było lżej i prościej niż
+     pierwotnie rozważany `deepface`, bez kompilowania czegokolwiek jak przy
+     `dlib`). Detekcja i embedding wychodzą z insightface w jednym wywołaniu
+     (`FaceAnalysis.get()`), więc `InsightFaceEmbedder` tylko odczytuje
+     embedding już policzony przez detektor — sam detektor da się później
+     podmienić osobno, o ile nowy embedder też umie się z nim dogadać.
    - Wynik rozpoznania to `list[RecognizedPerson]` (dataclass: `name`,
      `confidence`, `bbox`), nie pojedynczy string — na zdjęciu może być
      kilka osób naraz.
@@ -63,9 +69,10 @@
      kluczowymi w pliku.
 
    Do doprecyzowania:
-   - Lokalność a pobranie wag modelu: pierwsze uruchomienie `deepface`
-     wymaga jednorazowego połączenia z internetem, żeby pobrać pliki modelu
-     (żadne dane użytkownika nie są wysyłane, tylko wagi ściągane).
-     Do ustalenia: czy to akceptowalne, czy wymagane jest działanie w 100%
-     offline od pierwszego uruchomienia (wtedy wagi trzeba dostarczyć razem
-     z instalacją albo pobrać ręcznie wcześniej, wg osobnej instrukcji).
+   - Lokalność a pobranie wag modelu: pierwsze uruchomienie `insightface`
+     wymaga jednorazowego połączenia z internetem, żeby pobrać paczkę modelu
+     `buffalo_l` do `~/.insightface/models/` (żadne dane użytkownika nie są
+     wysyłane, tylko wagi ściągane). Do ustalenia: czy to akceptowalne, czy
+     wymagane jest działanie w 100% offline od pierwszego uruchomienia (wtedy
+     wagi trzeba dostarczyć razem z instalacją albo pobrać ręcznie wcześniej,
+     wg osobnej instrukcji).

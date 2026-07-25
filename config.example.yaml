@@ -38,10 +38,10 @@ phone_mapping:
 # Rozpoznawanie twarzy w tle (`files-organizer-faces --config config.yaml`).
 # Wymaga `pip install -e ".[face_recognition]"`. Przetwarzanie odbywa się
 # wyłącznie lokalnie - żadne zdjęcia ani dane z nich nie są wysyłane poza
-# ten komputer (pierwsze uruchomienie deepface pobiera jednorazowo z sieci
+# ten komputer (pierwsze uruchomienie insightface pobiera jednorazowo z sieci
 # tylko wagi modelu, nie dane użytkownika).
 # face_recognition:
-#   type: "deepface"
+#   type: "insightface"
 #   # Katalog ze zdjęciami referencyjnymi: known_faces/<Osoba>/*.jpg
 #   known_faces_dir: "./known_faces"
 #   # Opcjonalnie: gdzie trzymać cache embeddingów (domyślnie known_faces_dir/cache/embeddings.pkl)

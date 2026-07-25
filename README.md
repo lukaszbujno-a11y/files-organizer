@@ -67,7 +67,7 @@ files-organizer/
 │   ├── pipeline.py          # pętla dopasowanie->kopiowanie, współdzielona przez CLI i GUI
 │   ├── gui.py               # okno graficzne (Tkinter): ścieżki, tryb, config, log
 │   ├── cli.py               # `files-organizer --config config.yaml [--dry-run] [--gui]`
-│   ├── face_recognizers/    # FaceRecognizer ← DeepFaceRecognizer (detektor/embedder/known faces)
+│   ├── face_recognizers/    # FaceRecognizer ← InsightFaceRecognizer (detektor/embedder/known faces)
 │   ├── metadata.py          # odczyt/zapis tagów osób w zdjęciu przez exiftool
 │   ├── face_watcher.py      # watcher (watchdog) + kolejka + worker tagujący twarze na bieżąco
 │   └── face_cli.py          # `files-organizer-faces --config config.yaml`
@@ -165,8 +165,9 @@ zdjęcia — dopisywane, nigdy nadpisywane, więc ponowne wykrycie tej samej oso
 Embeddingi zdjęć referencyjnych są cache'owane (`known_faces_dir/cache/embeddings.pkl`) i
 przeliczane tylko wtedy, gdy dany plik referencyjny się zmienił.
 
-Pierwsze uruchomienie modelu `deepface` wymaga jednorazowego połączenia z internetem, żeby
-pobrać wagi modelu (same wagi, żadne dane użytkownika).
+Pierwsze uruchomienie modelu `insightface` (`buffalo_l`) wymaga jednorazowego połączenia
+z internetem, żeby pobrać wagi modelu do `~/.insightface/models/` (same wagi, żadne dane
+użytkownika).
 
 ## Przygotowanie do pracy z git
 

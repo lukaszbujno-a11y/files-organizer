@@ -33,7 +33,7 @@ class _MediaFileHandler(FileSystemEventHandler):
             self.work_queue.put(path)
 
 
-def _process_one(path: Path, recognizer: FaceRecognizer, log: LogFn) -> None:
+def _process_one(path: Path, recognizer: FaceRecognizer, log: LogFn, dry_run: bool) -> None:
     if not path.exists():
         return
     try:
@@ -44,23 +44,31 @@ def _process_one(path: Path, recognizer: FaceRecognizer, log: LogFn) -> None:
 
     if not people:
         return
-    write_tags(path, [person.name for person in people])
-    log(f"{path} -> {', '.join(person.name for person in people)}")
+    names = [person.name for person in people]
+    if dry_run:
+        log(f"{path} -> (dry-run) oznaczono by tagiem: {', '.join(names)}")
+        return
+    write_tags(path, names)
+    log(f"{path} -> {', '.join(names)}")
 
 
-def _worker(work_queue: "queue.Queue[Path]", recognizer: FaceRecognizer, log: LogFn, stop_event: threading.Event) -> None:
+def _worker(
+    work_queue: "queue.Queue[Path]", recognizer: FaceRecognizer, log: LogFn, stop_event: threading.Event, dry_run: bool
+) -> None:
     while not stop_event.is_set():
         try:
             path = work_queue.get(timeout=0.5)
         except queue.Empty:
             continue
         try:
-            _process_one(path, recognizer, log)
+            _process_one(path, recognizer, log, dry_run)
         finally:
             work_queue.task_done()
 
 
-def watch_for_faces(input_dir: Path, recognizer: FaceRecognizer, log: LogFn, stop_event: threading.Event) -> None:
+def watch_for_faces(
+    input_dir: Path, recognizer: FaceRecognizer, log: LogFn, stop_event: threading.Event, dry_run: bool = False
+) -> None:
     """Long-running: watch `input_dir` for new media files and tag recognized people on them.
 
     Independent of `run_pipeline` - meant to keep running in the background while the user
@@ -68,6 +76,9 @@ def watch_for_faces(input_dir: Path, recognizer: FaceRecognizer, log: LogFn, sto
     runs inside the watchdog callback itself: `watchdog` only pushes paths onto a queue, and a
     separate worker thread drains it, so copying in hundreds of files at once queues up cheaply
     instead of blocking the OS event thread.
+
+    `dry_run` still runs detection/recognition but skips `write_tags`, logging what would have
+    been tagged instead - useful for checking `known_faces` enrollment before touching real files.
 
     Blocks until `stop_event` is set (e.g. by a Ctrl+C handler in the caller).
     """
@@ -78,7 +89,9 @@ def watch_for_faces(input_dir: Path, recognizer: FaceRecognizer, log: LogFn, sto
     observer.schedule(handler, str(input_dir), recursive=True)
     observer.start()
 
-    worker_thread = threading.Thread(target=_worker, args=(work_queue, recognizer, log, stop_event), daemon=True)
+    worker_thread = threading.Thread(
+        target=_worker, args=(work_queue, recognizer, log, stop_event, dry_run), daemon=True
+    )
     worker_thread.start()
 
     try:

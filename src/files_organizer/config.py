@@ -23,6 +23,7 @@ class Config:
     overlap_dir_name: str = "Niedopasowane"
     phone_mapping: dict[str, PhoneMappingEntry] = field(default_factory=dict)
     include_tags: list[str] | None = None
+    face_recognition: dict | None = None
 
     def __post_init__(self):
         if self.mode not in {"copy", "move"}:
@@ -59,4 +60,5 @@ def load_config(path: str | Path) -> Config:
         overlap_dir_name=raw.get("overlap_dir_name", "Niedopasowane"),
         phone_mapping=phone_mapping,
         include_tags=raw.get("include_tags"),
+        face_recognition=raw.get("face_recognition"),
     )

@@ -13,7 +13,12 @@ from .volumes import missing_volume
 
 @click.command()
 @click.option("--config", "config_path", default="config.yaml", show_default=True, help="Path to config YAML file.")
-def main(config_path: str) -> None:
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Pokaż, kogo rozpoznano i jaki tag zostałby dodany, bez faktycznego zapisu do pliku.",
+)
+def main(config_path: str, dry_run: bool) -> None:
     """Run a long-lived background watcher that tags recognized faces on new photos.
 
     Independent of `files-organizer`: watches `input_dir` continuously and reacts to
@@ -38,8 +43,9 @@ def main(config_path: str) -> None:
 
     signal.signal(signal.SIGINT, handle_sigint)
 
-    click.echo(f"Obserwuję {config.input_dir} pod kątem znanych osób (Ctrl+C, aby zakończyć)…")
-    watch_for_faces(config.input_dir, recognizer, log=click.echo, stop_event=stop_event)
+    mode_note = " [dry-run: bez zapisu tagów]" if dry_run else ""
+    click.echo(f"Obserwuję {config.input_dir} pod kątem znanych osób{mode_note} (Ctrl+C, aby zakończyć)…")
+    watch_for_faces(config.input_dir, recognizer, log=click.echo, stop_event=stop_event, dry_run=dry_run)
 
 
 if __name__ == "__main__":

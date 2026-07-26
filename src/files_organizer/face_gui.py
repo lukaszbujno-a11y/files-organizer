@@ -384,9 +384,17 @@ class FaceScanReviewApp:
             dialog.destroy()
             self._write_approved()
 
+        def cancel() -> None:
+            dialog.destroy()
+            self.status_var.set("Przegląd anulowany — nie zapisano żadnych tagów")
+
+        # WM_DELETE_WINDOW (the window's own X button) must go to cancel, not finish - a user
+        # closing the window is telling us to abandon the review, not confirm it. Wiring it to
+        # finish() used to write every approved tag as a side effect of just closing the window.
         button_label = "Zamknij" if self.dry_run else "Zapisz tagi"
         ttk.Button(buttons, text=button_label, command=finish).pack(side="left", padx=4)
-        dialog.protocol("WM_DELETE_WINDOW", finish)
+        ttk.Button(buttons, text="Anuluj", command=cancel).pack(side="left", padx=4)
+        dialog.protocol("WM_DELETE_WINDOW", cancel)
 
     def _write_approved(self) -> None:
         self.status_var.set("Zapisywanie tagów…")

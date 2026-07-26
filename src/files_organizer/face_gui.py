@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import queue
+import signal
 import threading
 from pathlib import Path
 
@@ -58,6 +59,7 @@ class FaceWatcherApp:
         self.stop_event = threading.Event()
         self.worker: threading.Thread | None = None
         self._dialog_open = False
+        self._pending_request: _ConfirmRequest | None = None
 
         root.title("Files Organizer — rozpoznawanie twarzy")
         root.geometry("640x420")
@@ -98,6 +100,8 @@ class FaceWatcherApp:
         return request.approved
 
     def _poll_confirm_queue(self) -> None:
+        if self.stop_event.is_set():
+            return  # window is on its way down (see request_shutdown) - stop rescheduling
         if not self._dialog_open:
             try:
                 request = self.confirm_queue.get_nowait()
@@ -108,7 +112,16 @@ class FaceWatcherApp:
         self.root.after(150, self._poll_confirm_queue)
 
     def _show_confirm_dialog(self, request: _ConfirmRequest) -> None:
+        # Ctrl+C can land here mid-construction, right as request_shutdown() tears the window
+        # down from a reentrant signal handler call - harmless once it happens, so just bail.
+        try:
+            self._build_confirm_dialog(request)
+        except tk.TclError:
+            pass
+
+    def _build_confirm_dialog(self, request: _ConfirmRequest) -> None:
         self._dialog_open = True
+        self._pending_request = request
         dialog = tk.Toplevel(self.root)
         dialog.title("Potwierdź tag")
         dialog.transient(self.root)
@@ -134,11 +147,22 @@ class FaceWatcherApp:
             request.approved = approved
             request.done.set()
             self._dialog_open = False
+            self._pending_request = None
             dialog.destroy()
 
-        ttk.Button(buttons, text="Zatwierdź", command=lambda: resolve(True)).pack(side="left", padx=4)
+        approve_button = ttk.Button(buttons, text="Zatwierdź", command=lambda: resolve(True))
+        approve_button.pack(side="left", padx=4)
         ttk.Button(buttons, text="Odrzuć", command=lambda: resolve(False)).pack(side="left", padx=4)
         dialog.protocol("WM_DELETE_WINDOW", lambda: resolve(False))
+
+        # Enter/Return confirms, Escape rejects, regardless of which widget has focus.
+        dialog.bind("<Return>", lambda event: resolve(True))
+        dialog.bind("<KP_Enter>", lambda event: resolve(True))
+        dialog.bind("<Escape>", lambda event: resolve(False))
+        # focus_set() alone only records which widget *would* get keyboard input once the
+        # window itself has focus; focus_force() also grabs window-level focus from the OS/WM,
+        # so Enter confirms immediately without the user having to click the dialog first.
+        approve_button.focus_force()
 
     def _load_preview(self, path: Path):
         if _PIL_IMPORT_ERROR is not None or path.suffix.lower() not in IMAGE_SUFFIXES:
@@ -166,7 +190,21 @@ class FaceWatcherApp:
         self.root.after(100, self._poll_log_queue)
 
     def _on_close(self) -> None:
+        self.request_shutdown()
+
+    def request_shutdown(self, *_args) -> None:
+        """Stop the watcher and close the window - shared by the window-close button and Ctrl+C.
+
+        A pending confirm dialog is resolved as rejected rather than left open: the worker
+        thread would otherwise block forever on `request.done.wait()` for a dialog that's
+        about to be destroyed, since nothing else will ever set that event.
+        """
+        if self.stop_event.is_set():
+            return
         self.stop_event.set()
+        if self._pending_request is not None and not self._pending_request.done.is_set():
+            self._pending_request.approved = False
+            self._pending_request.done.set()
         self.root.destroy()
 
 
@@ -180,5 +218,15 @@ def launch_face_app(config: Config, auto: bool = False, dry_run: bool = False) -
             "a następnie utwórz środowisko wirtualne od nowa."
         )
     root = tk.Tk()
-    FaceWatcherApp(root, config, auto=auto, dry_run=dry_run)
+    app = FaceWatcherApp(root, config, auto=auto, dry_run=dry_run)
+
+    # Tkinter's mainloop only checks for pending signals while a Python callback (like our
+    # `after`-scheduled polling) is actually running - the rest of the time it's blocked in a
+    # C-level Tcl event wait that never returns control to the interpreter. With the *default*
+    # SIGINT handler that's what made Ctrl+C so unreliable here: the KeyboardInterrupt it raises
+    # gets caught and silently reported by Tkinter's own callback-exception handler instead of
+    # propagating, so mainloop just keeps going. Installing our own handler sidesteps that: it
+    # runs to completion instead of raising, so there's nothing left for Tkinter to swallow.
+    signal.signal(signal.SIGINT, lambda signum, frame: app.request_shutdown())
+
     root.mainloop()

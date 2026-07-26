@@ -23,7 +23,9 @@ class FaceDetection:
     names: list[str]
 
 
-def scan_for_faces(input_dir: Path, recognizer: FaceRecognizer, log: LogFn) -> list[FaceDetection]:
+def scan_for_faces(
+    input_dir: Path, recognizer: FaceRecognizer, log: LogFn, limit: int | None = None
+) -> list[FaceDetection]:
     """One-shot: recognize faces in every media file already sitting in `input_dir`.
 
     Unlike `watch_for_faces`, this doesn't watch for new files and never writes tags
@@ -34,9 +36,17 @@ def scan_for_faces(input_dir: Path, recognizer: FaceRecognizer, log: LogFn) -> l
     A file that already carries a `Person:` tag is skipped without running recognition on
     it at all - it was already reviewed in an earlier scan/watch, so re-running face
     detection on it (potentially expensive) would just waste time on a repeat scan.
+
+    `limit`, when given, stops the scan as soon as that many detections (not files - files
+    with nobody recognized, skipped ones, and errors don't count) have been collected,
+    instead of always going through the whole directory. Useful for a quick sample scan
+    over a large `input_dir`.
     """
     detections = []
     for path in iter_media_files(input_dir):
+        if limit is not None and len(detections) >= limit:
+            log(f"Osiągnięto limit {limit} wykryć, przerywam skanowanie")
+            break
         if read_tagged_people(path):
             log(f"{path} -> pominięto, zdjęcie ma już tag osoby")
             continue

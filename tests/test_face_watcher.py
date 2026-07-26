@@ -200,6 +200,31 @@ def test_scan_for_faces_returns_detections_without_writing_tags(tmp_path):
     assert read_tagged_people(photo_b) == []
 
 
+def test_scan_for_faces_stops_after_reaching_limit(tmp_path):
+    for name in ("a.jpg", "b.jpg", "c.jpg"):
+        _make_jpeg(tmp_path / name)
+
+    recognizer = FakeRecognizer([RecognizedPerson(name="Anna", confidence=0.9, bbox=(0, 0, 1, 1))])
+    log_messages: list[str] = []
+
+    detections = scan_for_faces(tmp_path, recognizer, log=log_messages.append, limit=2)
+
+    assert len(detections) == 2
+    assert len(recognizer.paths) == 2
+    assert any("limit" in message for message in log_messages)
+
+
+def test_scan_for_faces_without_limit_scans_everything(tmp_path):
+    for name in ("a.jpg", "b.jpg", "c.jpg"):
+        _make_jpeg(tmp_path / name)
+
+    recognizer = FakeRecognizer([RecognizedPerson(name="Anna", confidence=0.9, bbox=(0, 0, 1, 1))])
+
+    detections = scan_for_faces(tmp_path, recognizer, log=lambda msg: None)
+
+    assert len(detections) == 3
+
+
 def test_scan_for_faces_skips_photo_already_tagged_with_a_person(tmp_path):
     tagged_photo = tmp_path / "tagged.jpg"
     untagged_photo = tmp_path / "untagged.jpg"

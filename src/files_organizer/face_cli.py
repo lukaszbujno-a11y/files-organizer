@@ -11,6 +11,11 @@ from .face_watcher import FaceDetection, scan_for_faces, watch_for_faces
 from .metadata import write_tags
 from .volumes import missing_volume
 
+# Value `scan` takes when `--scan` is passed with no number - "scan everything", as opposed
+# to `--scan N` which caps the number of detections. Kept out of the non-negative range an
+# actual limit would use.
+_SCAN_NO_LIMIT = -1
+
 
 @click.command()
 @click.option("--config", "config_path", default="config.yaml", show_default=True, help="Path to config YAML file.")
@@ -31,15 +36,21 @@ from .volumes import missing_volume
 )
 @click.option(
     "--scan",
-    is_flag=True,
+    "scan",
+    is_flag=False,
+    flag_value=_SCAN_NO_LIMIT,
+    default=None,
+    type=int,
+    metavar="[N]",
     help=(
         "Przeskanuj input_dir raz i zakończ, zamiast obserwować go w nieskończoność. "
-        "Rozpoznawanie idzie przez wszystkie zdjęcia bez pytania, a potwierdzenie tagów "
-        "(zdjęcie po zdjęciu, z podsumowaniem per osoba na końcu) następuje dopiero po "
-        "zakończeniu całego skanu."
+        "Bez liczby: przeskanuj wszystkie zdjęcia. Z liczbą, np. --scan 100: przerwij "
+        "skanowanie po znalezieniu pierwszych 100 wykryć. Rozpoznawanie idzie przez "
+        "zdjęcia bez pytania, a potwierdzenie tagów (zdjęcie po zdjęciu, z podsumowaniem "
+        "per osoba na końcu) następuje dopiero po zakończeniu całego skanu."
     ),
 )
-def main(config_path: str, dry_run: bool, auto: bool, gui: bool, scan: bool) -> None:
+def main(config_path: str, dry_run: bool, auto: bool, gui: bool, scan: int | None) -> None:
     """Run a long-lived background watcher that tags recognized faces on new photos.
 
     Independent of `files-organizer`: watches `input_dir` continuously and reacts to
@@ -60,13 +71,14 @@ def main(config_path: str, dry_run: bool, auto: bool, gui: bool, scan: bool) -> 
     if volume is not None:
         raise click.UsageError(f"Katalog wejściowy ({config.input_dir}) jest na dysku, który nie jest podłączony: {volume}.")
 
-    if scan:
+    if scan is not None:
+        scan_limit = None if scan == _SCAN_NO_LIMIT else scan
         if gui:
             from .face_gui import launch_face_scan_app
 
-            launch_face_scan_app(config, dry_run=dry_run, auto=auto)
+            launch_face_scan_app(config, dry_run=dry_run, auto=auto, limit=scan_limit)
         else:
-            _run_scan_cli(config, dry_run=dry_run, auto=auto)
+            _run_scan_cli(config, dry_run=dry_run, auto=auto, limit=scan_limit)
         return
 
     if gui:
@@ -104,11 +116,11 @@ def main(config_path: str, dry_run: bool, auto: bool, gui: bool, scan: bool) -> 
     )
 
 
-def _run_scan_cli(config, dry_run: bool, auto: bool) -> None:
+def _run_scan_cli(config, dry_run: bool, auto: bool, limit: int | None = None) -> None:
     """Terminal counterpart of `launch_face_scan_app`: scan once, confirm, write, done."""
     recognizer = get_face_recognizer(config.face_recognition)
     click.echo(f"Skanuję {config.input_dir}…")
-    detections = scan_for_faces(config.input_dir, recognizer, log=click.echo)
+    detections = scan_for_faces(config.input_dir, recognizer, log=click.echo, limit=limit)
     if not detections:
         click.echo("Nie rozpoznano nikogo.")
         return

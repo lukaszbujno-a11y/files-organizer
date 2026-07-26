@@ -265,11 +265,12 @@ class FaceScanReviewApp:
     only after the user confirms that summary, never while scanning or reviewing is still going.
     """
 
-    def __init__(self, root: tk.Tk, config: Config, dry_run: bool, auto: bool = False) -> None:
+    def __init__(self, root: tk.Tk, config: Config, dry_run: bool, auto: bool = False, limit: int | None = None) -> None:
         self.root = root
         self.config = config
         self.dry_run = dry_run
         self.auto = auto
+        self.limit = limit
         self.log_queue: queue.Queue[object] = queue.Queue()
         self.scan_result_queue: queue.Queue[list[FaceDetection]] = queue.Queue()
         self.write_done_queue: queue.Queue[bool] = queue.Queue()
@@ -300,7 +301,7 @@ class FaceScanReviewApp:
         threading.Thread(target=self._run_scan, args=(recognizer,), daemon=True).start()
 
     def _run_scan(self, recognizer) -> None:
-        detections = scan_for_faces(self.config.input_dir, recognizer, self.log_queue.put)
+        detections = scan_for_faces(self.config.input_dir, recognizer, self.log_queue.put, limit=self.limit)
         self.scan_result_queue.put(detections)
 
     def _poll_scan_result(self) -> None:
@@ -436,15 +437,16 @@ class FaceScanReviewApp:
         self.root.destroy()
 
 
-def launch_face_scan_app(config: Config, dry_run: bool = False, auto: bool = False) -> None:
+def launch_face_scan_app(config: Config, dry_run: bool = False, auto: bool = False, limit: int | None = None) -> None:
     """Open a GUI window that scans `input_dir` once, then reviews every detection at the end.
 
     Unlike `launch_face_app`, this doesn't keep watching `input_dir` afterwards - it's a
     one-shot pass meant for reviewing a whole batch of photos without having to sit through a
-    confirmation popup for each one as it's being recognized.
+    confirmation popup for each one as it's being recognized. `limit`, when given, stops the
+    scan after that many detections instead of always going through the whole directory.
     """
     _require_tk()
     root = tk.Tk()
-    app = FaceScanReviewApp(root, config, dry_run=dry_run, auto=auto)
+    app = FaceScanReviewApp(root, config, dry_run=dry_run, auto=auto, limit=limit)
     signal.signal(signal.SIGINT, lambda signum, frame: app._on_close())
     root.mainloop()

@@ -5,7 +5,7 @@ from PIL import Image
 
 from files_organizer.face_recognizers.base import FaceRecognizer
 from files_organizer.face_watcher import scan_for_faces, watch_for_faces
-from files_organizer.metadata import read_tagged_people
+from files_organizer.metadata import read_tagged_people, write_tags
 from files_organizer.models import RecognizedPerson
 
 
@@ -165,6 +165,25 @@ def test_watch_for_faces_skips_files_with_no_recognized_person(tmp_path):
         watcher_thread.join(timeout=5)
 
 
+def test_watch_for_faces_skips_photo_already_tagged_with_a_person(tmp_path):
+    photo = tmp_path / "existing.jpg"
+    _make_jpeg(photo)
+    write_tags(photo, ["Anna"])
+
+    recognizer = FakeRecognizer([RecognizedPerson(name="Jan", confidence=0.9, bbox=(0, 0, 1, 1))])
+    stop_event = threading.Event()
+    log_messages: list[str] = []
+    watcher_thread = _run_watcher(tmp_path, recognizer, stop_event, log=log_messages.append)
+
+    try:
+        assert _wait_until(lambda: any("pominięto" in message for message in log_messages))
+        assert recognizer.paths == []
+        assert read_tagged_people(photo) == ["Anna"]
+    finally:
+        stop_event.set()
+        watcher_thread.join(timeout=5)
+
+
 def test_scan_for_faces_returns_detections_without_writing_tags(tmp_path):
     photo_a = tmp_path / "a.jpg"
     photo_b = tmp_path / "b.jpg"
@@ -179,6 +198,23 @@ def test_scan_for_faces_returns_detections_without_writing_tags(tmp_path):
     assert all(d.names == ["Anna"] for d in detections)
     assert read_tagged_people(photo_a) == []
     assert read_tagged_people(photo_b) == []
+
+
+def test_scan_for_faces_skips_photo_already_tagged_with_a_person(tmp_path):
+    tagged_photo = tmp_path / "tagged.jpg"
+    untagged_photo = tmp_path / "untagged.jpg"
+    _make_jpeg(tagged_photo)
+    _make_jpeg(untagged_photo)
+    write_tags(tagged_photo, ["Anna"])
+
+    recognizer = FakeRecognizer([RecognizedPerson(name="Jan", confidence=0.9, bbox=(0, 0, 1, 1))])
+    log_messages: list[str] = []
+
+    detections = scan_for_faces(tmp_path, recognizer, log=log_messages.append)
+
+    assert [d.path for d in detections] == [untagged_photo]
+    assert recognizer.paths == [untagged_photo]
+    assert any("pominięto" in message and "tagged.jpg" in message for message in log_messages)
 
 
 def test_scan_for_faces_skips_files_with_no_recognized_person(tmp_path):

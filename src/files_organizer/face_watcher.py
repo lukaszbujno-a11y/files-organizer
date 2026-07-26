@@ -11,7 +11,7 @@ from watchdog.observers import Observer
 
 from .exif_reader import SUPPORTED_SUFFIXES, iter_media_files
 from .face_recognizers import FaceRecognizer
-from .metadata import write_tags
+from .metadata import read_tagged_people, write_tags
 
 LogFn = Callable[[str], None]
 ConfirmFn = Callable[[Path, "list[str]"], bool]
@@ -30,9 +30,16 @@ def scan_for_faces(input_dir: Path, recognizer: FaceRecognizer, log: LogFn) -> l
     itself - it just runs recognition over the whole directory and returns every
     detection, so a batch review can happen (e.g. one popup per photo) only after the
     whole scan is done, instead of blocking file-by-file while the scan is still running.
+
+    A file that already carries a `Person:` tag is skipped without running recognition on
+    it at all - it was already reviewed in an earlier scan/watch, so re-running face
+    detection on it (potentially expensive) would just waste time on a repeat scan.
     """
     detections = []
     for path in iter_media_files(input_dir):
+        if read_tagged_people(path):
+            log(f"{path} -> pominięto, zdjęcie ma już tag osoby")
+            continue
         log(f"Analizuję: {path}")
         try:
             people = recognizer.recognize(path)
@@ -70,6 +77,9 @@ def _process_one(
     path: Path, recognizer: FaceRecognizer, log: LogFn, dry_run: bool, confirm_fn: ConfirmFn | None = None
 ) -> None:
     if not path.exists():
+        return
+    if read_tagged_people(path):
+        log(f"{path} -> pominięto, zdjęcie ma już tag osoby")
         return
 
     log(f"Analizuję: {path}")

@@ -410,6 +410,10 @@ class FaceScanReviewApp:
                 self.log_queue.put(f"{detection.path} -> {', '.join(detection.names)}")
         for detection in self._rejected:
             self.log_queue.put(f"{detection.path} -> pominięto na żądanie użytkownika: {', '.join(detection.names)}")
+        if self.dry_run:
+            self.log_queue.put(f"Dry-run zakończony — oznaczono by {len(self._approved)} zdjęć.")
+        else:
+            self.log_queue.put(f"Zakończono dodawanie tagów — oznaczono {len(self._approved)} zdjęć.")
         self.write_done_queue.put(True)
 
     def _poll_write_done(self) -> None:

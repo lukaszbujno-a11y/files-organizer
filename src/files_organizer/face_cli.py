@@ -6,9 +6,10 @@ import threading
 import click
 
 from .config import load_config
+from .exif_reader import iter_media_files
 from .face_recognizers import get_face_recognizer
 from .face_watcher import FaceDetection, scan_for_faces, watch_for_faces
-from .metadata import write_tags
+from .metadata import read_tagged_people, remove_person_tags, write_tags
 from .volumes import missing_volume
 
 # Value `scan` takes when `--scan` is passed with no number - "scan everything", as opposed
@@ -50,7 +51,12 @@ _SCAN_NO_LIMIT = -1
         "per osoba na końcu) następuje dopiero po zakończeniu całego skanu."
     ),
 )
-def main(config_path: str, dry_run: bool, auto: bool, gui: bool, scan: int | None) -> None:
+@click.option(
+    "--untag-all",
+    is_flag=True,
+    help="Usuń wszystkie tagi Person:* dodane wcześniej do zdjęć w input_dir i zakończ.",
+)
+def main(config_path: str, dry_run: bool, auto: bool, gui: bool, scan: int | None, untag_all: bool) -> None:
     """Run a long-lived background watcher that tags recognized faces on new photos.
 
     Independent of `files-organizer`: watches `input_dir` continuously and reacts to
@@ -62,14 +68,19 @@ def main(config_path: str, dry_run: bool, auto: bool, gui: bool, scan: int | Non
     the whole scan is done.
     """
     config = load_config(config_path)
-    if not config.face_recognition:
-        raise click.UsageError(
-            f"Sekcja 'face_recognition' nie jest ustawiona w {config_path}. Zobacz config.example.yaml."
-        )
 
     volume = missing_volume(config.input_dir)
     if volume is not None:
         raise click.UsageError(f"Katalog wejściowy ({config.input_dir}) jest na dysku, który nie jest podłączony: {volume}.")
+
+    if untag_all:
+        _run_untag_all(config.input_dir)
+        return
+
+    if not config.face_recognition:
+        raise click.UsageError(
+            f"Sekcja 'face_recognition' nie jest ustawiona w {config_path}. Zobacz config.example.yaml."
+        )
 
     if scan is not None:
         scan_limit = None if scan == _SCAN_NO_LIMIT else scan
@@ -116,6 +127,26 @@ def main(config_path: str, dry_run: bool, auto: bool, gui: bool, scan: int | Non
     )
 
 
+def _run_untag_all(input_dir) -> None:
+    """Find every file under `input_dir` carrying a `Person:` tag and remove those tags."""
+    tagged_paths = [path for path in iter_media_files(input_dir) if read_tagged_people(path)]
+    if not tagged_paths:
+        click.echo("Nie znaleziono żadnych zdjęć z tagiem Person:.")
+        return
+
+    click.echo(f"Znaleziono {len(tagged_paths)} zdjęć z tagiem Person::")
+    for path in tagged_paths:
+        click.echo(f"  {path} -> {', '.join(read_tagged_people(path))}")
+
+    if not click.confirm(f"\nUsunąć tagi Person: z {len(tagged_paths)} zdjęć w {input_dir}?", default=False):
+        click.echo("Przerwano, nic nie zmieniono.")
+        return
+
+    for path in tagged_paths:
+        removed = remove_person_tags(path)
+        click.echo(f"{path} -> usunięto: {', '.join(removed)}")
+
+
 def _run_scan_cli(config, dry_run: bool, auto: bool, limit: int | None = None) -> None:
     """Terminal counterpart of `launch_face_scan_app`: scan once, confirm, write, done."""
     recognizer = get_face_recognizer(config.face_recognition)
@@ -153,6 +184,11 @@ def _run_scan_cli(config, dry_run: bool, auto: bool, limit: int | None = None) -
         else:
             write_tags(detection.path, detection.names)
             click.echo(f"{detection.path} -> {', '.join(detection.names)}")
+
+    if dry_run:
+        click.echo(f"Dry-run zakończony — oznaczono by {len(approved)} zdjęć.")
+    else:
+        click.echo(f"Zakończono dodawanie tagów — oznaczono {len(approved)} zdjęć.")
 
 
 if __name__ == "__main__":

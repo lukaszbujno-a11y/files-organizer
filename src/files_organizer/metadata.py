@@ -49,3 +49,19 @@ def write_tags(path: Path, people: list[str]) -> None:
     args += [f"-Keywords+={tag}" for tag in new_tags]
     args.append(str(path))
     subprocess.run(args, capture_output=True, text=True, check=True)
+
+
+def remove_person_tags(path: Path) -> list[str]:
+    """Remove every `Person:<name>` keyword from `path`, leaving other keywords untouched.
+
+    Returns the names that were removed (empty list if the file had no `Person:` tags).
+    """
+    tagged = read_tagged_people(path)
+    if not tagged:
+        return []
+
+    args = ["exiftool", "-overwrite_original"]
+    args += [f"-Keywords-={PERSON_TAG_PREFIX}{name}" for name in tagged]
+    args.append(str(path))
+    subprocess.run(args, capture_output=True, text=True, check=True)
+    return tagged

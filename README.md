@@ -162,19 +162,30 @@ Uruchomienie:
 files-organizer-faces --config config.yaml
 ```
 
+Domyślnie każdy rozpoznany tag trzeba zatwierdzić w terminalu (`y`/`n`), zanim zostanie zapisany
+do zdjęcia. Żeby zamiast tego tagować w pełni automatycznie (bez pytania), użyj `--auto`:
+
+```
+files-organizer-faces --config config.yaml --auto
+```
+
 Podgląd bez zapisu (`--dry-run`) rozpoznaje twarze i pokazuje w logu, jaki tag zostałby dodany
-do każdego pliku, ale nic nie zapisuje do zdjęć:
+do każdego pliku, ale nic nie zapisuje do zdjęć (potwierdzenia są wtedy pomijane, bo i tak nic
+by się nie zapisało):
 
 ```
 files-organizer-faces --config config.yaml --dry-run
 ```
 
-Tryb z potwierdzeniem (`--confirm`) pyta w terminalu o zgodę na dodanie tagu do każdego zdjęcia
-osobno, zanim faktycznie go zapisze:
+Potwierdzanie w samym terminalu bywa niewygodne, bo nie widać zdjęcia — `--gui` otwiera zamiast
+tego okno z podglądem każdego rozpoznanego zdjęcia i przyciskami Zatwierdź/Odrzuć:
 
 ```
-files-organizer-faces --config config.yaml --confirm
+files-organizer-faces --config config.yaml --gui
 ```
+
+`--gui` można łączyć z `--auto` (wtedy okno tylko pokazuje log, bez pytania o potwierdzenie) i
+z `--dry-run`.
 
 Rozpoznane osoby są zapisywane jako słowa kluczowe `Person:<Imię>` (IPTC/XMP Keywords) w pliku
 zdjęcia — dopisywane, nigdy nadpisywane, więc ponowne wykrycie tej samej osoby jest bezpieczne.

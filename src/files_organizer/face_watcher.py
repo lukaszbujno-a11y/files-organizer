@@ -36,6 +36,8 @@ class _MediaFileHandler(FileSystemEventHandler):
 def _process_one(path: Path, recognizer: FaceRecognizer, log: LogFn, dry_run: bool) -> None:
     if not path.exists():
         return
+
+    log(f"Analizuję: {path}")
     try:
         people = recognizer.recognize(path)
     except Exception as exc:
@@ -43,6 +45,7 @@ def _process_one(path: Path, recognizer: FaceRecognizer, log: LogFn, dry_run: bo
         return
 
     if not people:
+        log(f"{path} -> nie rozpoznano znanych osób")
         return
     names = [person.name for person in people]
     if dry_run:

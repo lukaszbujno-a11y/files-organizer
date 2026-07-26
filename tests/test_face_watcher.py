@@ -4,7 +4,7 @@ import time
 from PIL import Image
 
 from files_organizer.face_recognizers.base import FaceRecognizer
-from files_organizer.face_watcher import watch_for_faces
+from files_organizer.face_watcher import scan_for_faces, watch_for_faces
 from files_organizer.metadata import read_tagged_people
 from files_organizer.models import RecognizedPerson
 
@@ -163,3 +163,49 @@ def test_watch_for_faces_skips_files_with_no_recognized_person(tmp_path):
     finally:
         stop_event.set()
         watcher_thread.join(timeout=5)
+
+
+def test_scan_for_faces_returns_detections_without_writing_tags(tmp_path):
+    photo_a = tmp_path / "a.jpg"
+    photo_b = tmp_path / "b.jpg"
+    _make_jpeg(photo_a)
+    _make_jpeg(photo_b)
+
+    recognizer = FakeRecognizer([RecognizedPerson(name="Anna", confidence=0.9, bbox=(0, 0, 1, 1))])
+
+    detections = scan_for_faces(tmp_path, recognizer, log=lambda msg: None)
+
+    assert {d.path for d in detections} == {photo_a, photo_b}
+    assert all(d.names == ["Anna"] for d in detections)
+    assert read_tagged_people(photo_a) == []
+    assert read_tagged_people(photo_b) == []
+
+
+def test_scan_for_faces_skips_files_with_no_recognized_person(tmp_path):
+    photo = tmp_path / "stranger.jpg"
+    _make_jpeg(photo)
+
+    recognizer = FakeRecognizer([])
+
+    detections = scan_for_faces(tmp_path, recognizer, log=lambda msg: None)
+
+    assert detections == []
+
+
+def test_scan_for_faces_logs_and_continues_after_recognition_error(tmp_path):
+    good_photo = tmp_path / "good.jpg"
+    bad_photo = tmp_path / "bad.jpg"
+    _make_jpeg(good_photo)
+    _make_jpeg(bad_photo)
+
+    class FlakyRecognizer(FaceRecognizer):
+        def recognize(self, path):
+            if path == bad_photo:
+                raise RuntimeError("boom")
+            return [RecognizedPerson(name="Anna", confidence=0.9, bbox=(0, 0, 1, 1))]
+
+    log_messages: list[str] = []
+    detections = scan_for_faces(tmp_path, FlakyRecognizer(), log=log_messages.append)
+
+    assert [d.path for d in detections] == [good_photo]
+    assert any("błąd rozpoznawania twarzy" in message for message in log_messages)

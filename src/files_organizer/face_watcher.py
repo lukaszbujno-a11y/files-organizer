@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import queue
 import threading
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
@@ -14,6 +15,37 @@ from .metadata import write_tags
 
 LogFn = Callable[[str], None]
 ConfirmFn = Callable[[Path, "list[str]"], bool]
+
+
+@dataclass
+class FaceDetection:
+    path: Path
+    names: list[str]
+
+
+def scan_for_faces(input_dir: Path, recognizer: FaceRecognizer, log: LogFn) -> list[FaceDetection]:
+    """One-shot: recognize faces in every media file already sitting in `input_dir`.
+
+    Unlike `watch_for_faces`, this doesn't watch for new files and never writes tags
+    itself - it just runs recognition over the whole directory and returns every
+    detection, so a batch review can happen (e.g. one popup per photo) only after the
+    whole scan is done, instead of blocking file-by-file while the scan is still running.
+    """
+    detections = []
+    for path in iter_media_files(input_dir):
+        log(f"Analizuję: {path}")
+        try:
+            people = recognizer.recognize(path)
+        except Exception as exc:
+            log(f"{path} -> błąd rozpoznawania twarzy: {exc}")
+            continue
+        if not people:
+            log(f"{path} -> nie rozpoznano znanych osób")
+            continue
+        names = [person.name for person in people]
+        log(f"{path} -> rozpoznano: {', '.join(names)}")
+        detections.append(FaceDetection(path=path, names=names))
+    return detections
 
 
 class _MediaFileHandler(FileSystemEventHandler):

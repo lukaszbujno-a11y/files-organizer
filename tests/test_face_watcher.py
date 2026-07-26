@@ -32,11 +32,11 @@ def _wait_until(predicate, timeout=5.0, interval=0.05) -> bool:
     return predicate()
 
 
-def _run_watcher(input_dir, recognizer, stop_event, log=None, dry_run=False):
+def _run_watcher(input_dir, recognizer, stop_event, log=None, dry_run=False, confirm_fn=None):
     watcher_thread = threading.Thread(
         target=watch_for_faces,
         args=(input_dir, recognizer, log or (lambda msg: None), stop_event),
-        kwargs={"dry_run": dry_run},
+        kwargs={"dry_run": dry_run, "confirm_fn": confirm_fn},
         daemon=True,
     )
     watcher_thread.start()
@@ -102,6 +102,48 @@ def test_watch_for_faces_dry_run_does_not_write_tags(tmp_path):
         assert _wait_until(lambda: len(recognizer.paths) == 1)
         assert any("dry-run" in message and "Anna" in message for message in log_messages)
         assert read_tagged_people(photo) == []
+    finally:
+        stop_event.set()
+        watcher_thread.join(timeout=5)
+
+
+def test_watch_for_faces_writes_tag_when_confirmed(tmp_path):
+    recognizer = FakeRecognizer([RecognizedPerson(name="Anna", confidence=0.9, bbox=(0, 0, 1, 1))])
+    stop_event = threading.Event()
+    confirm_calls = []
+
+    def confirm_fn(path, names):
+        confirm_calls.append((path, names))
+        return True
+
+    watcher_thread = _run_watcher(tmp_path, recognizer, stop_event, confirm_fn=confirm_fn)
+
+    try:
+        photo = tmp_path / "new.jpg"
+        _make_jpeg(photo)
+
+        assert _wait_until(lambda: read_tagged_people(photo) == ["Anna"])
+        assert (photo, ["Anna"]) in confirm_calls
+    finally:
+        stop_event.set()
+        watcher_thread.join(timeout=5)
+
+
+def test_watch_for_faces_skips_tag_when_rejected(tmp_path):
+    recognizer = FakeRecognizer([RecognizedPerson(name="Anna", confidence=0.9, bbox=(0, 0, 1, 1))])
+    stop_event = threading.Event()
+    log_messages: list[str] = []
+    watcher_thread = _run_watcher(
+        tmp_path, recognizer, stop_event, log=log_messages.append, confirm_fn=lambda path, names: False
+    )
+
+    try:
+        photo = tmp_path / "new.jpg"
+        _make_jpeg(photo)
+
+        assert _wait_until(lambda: len(recognizer.paths) == 1)
+        assert read_tagged_people(photo) == []
+        assert any("pominięto" in message and "Anna" in message for message in log_messages)
     finally:
         stop_event.set()
         watcher_thread.join(timeout=5)

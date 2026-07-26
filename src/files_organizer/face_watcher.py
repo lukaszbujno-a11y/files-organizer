@@ -13,6 +13,7 @@ from .face_recognizers import FaceRecognizer
 from .metadata import write_tags
 
 LogFn = Callable[[str], None]
+ConfirmFn = Callable[[Path, "list[str]"], bool]
 
 
 class _MediaFileHandler(FileSystemEventHandler):
@@ -33,7 +34,9 @@ class _MediaFileHandler(FileSystemEventHandler):
             self.work_queue.put(path)
 
 
-def _process_one(path: Path, recognizer: FaceRecognizer, log: LogFn, dry_run: bool) -> None:
+def _process_one(
+    path: Path, recognizer: FaceRecognizer, log: LogFn, dry_run: bool, confirm_fn: ConfirmFn | None = None
+) -> None:
     if not path.exists():
         return
 
@@ -51,12 +54,20 @@ def _process_one(path: Path, recognizer: FaceRecognizer, log: LogFn, dry_run: bo
     if dry_run:
         log(f"{path} -> (dry-run) oznaczono by tagiem: {', '.join(names)}")
         return
+    if confirm_fn is not None and not confirm_fn(path, names):
+        log(f"{path} -> pominięto na żądanie użytkownika: {', '.join(names)}")
+        return
     write_tags(path, names)
     log(f"{path} -> {', '.join(names)}")
 
 
 def _worker(
-    work_queue: "queue.Queue[Path]", recognizer: FaceRecognizer, log: LogFn, stop_event: threading.Event, dry_run: bool
+    work_queue: "queue.Queue[Path]",
+    recognizer: FaceRecognizer,
+    log: LogFn,
+    stop_event: threading.Event,
+    dry_run: bool,
+    confirm_fn: ConfirmFn | None,
 ) -> None:
     while not stop_event.is_set():
         try:
@@ -64,13 +75,18 @@ def _worker(
         except queue.Empty:
             continue
         try:
-            _process_one(path, recognizer, log, dry_run)
+            _process_one(path, recognizer, log, dry_run, confirm_fn)
         finally:
             work_queue.task_done()
 
 
 def watch_for_faces(
-    input_dir: Path, recognizer: FaceRecognizer, log: LogFn, stop_event: threading.Event, dry_run: bool = False
+    input_dir: Path,
+    recognizer: FaceRecognizer,
+    log: LogFn,
+    stop_event: threading.Event,
+    dry_run: bool = False,
+    confirm_fn: ConfirmFn | None = None,
 ) -> None:
     """Long-running: watch `input_dir` for new media files and tag recognized people on them.
 
@@ -82,6 +98,11 @@ def watch_for_faces(
 
     `dry_run` still runs detection/recognition but skips `write_tags`, logging what would have
     been tagged instead - useful for checking `known_faces` enrollment before touching real files.
+
+    `confirm_fn`, when given, is called with the recognized names for a file right before it
+    would be tagged; returning `False` skips `write_tags` for that file. It runs synchronously
+    on the single worker thread (never on the watchdog event thread), so it's safe to block on
+    user input there. Ignored when `dry_run` is set, since nothing would be written anyway.
 
     On startup, every file already sitting in `input_dir` is queued up too - `watchdog` only
     reports files that appear *after* it starts watching, so without this a file copied in
@@ -100,7 +121,7 @@ def watch_for_faces(
         work_queue.put(path)
 
     worker_thread = threading.Thread(
-        target=_worker, args=(work_queue, recognizer, log, stop_event, dry_run), daemon=True
+        target=_worker, args=(work_queue, recognizer, log, stop_event, dry_run, confirm_fn), daemon=True
     )
     worker_thread.start()
 

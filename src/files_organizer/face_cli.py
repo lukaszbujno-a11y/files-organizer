@@ -18,7 +18,13 @@ from .volumes import missing_volume
     is_flag=True,
     help="Pokaż, kogo rozpoznano i jaki tag zostałby dodany, bez faktycznego zapisu do pliku.",
 )
-def main(config_path: str, dry_run: bool) -> None:
+@click.option(
+    "--confirm",
+    "require_confirmation",
+    is_flag=True,
+    help="Przed zapisaniem tagu poproś o potwierdzenie dla każdego zdjęcia.",
+)
+def main(config_path: str, dry_run: bool, require_confirmation: bool) -> None:
     """Run a long-lived background watcher that tags recognized faces on new photos.
 
     Independent of `files-organizer`: watches `input_dir` continuously and reacts to
@@ -43,9 +49,25 @@ def main(config_path: str, dry_run: bool) -> None:
 
     signal.signal(signal.SIGINT, handle_sigint)
 
-    mode_note = " [dry-run: bez zapisu tagów]" if dry_run else ""
+    def confirm_tag(path, names: list[str]) -> bool:
+        return click.confirm(f"{path} -> oznaczyć tagiem: {', '.join(names)}?", default=True)
+
+    mode_notes = []
+    if dry_run:
+        mode_notes.append("dry-run: bez zapisu tagów")
+    if require_confirmation:
+        mode_notes.append("potwierdzanie każdego tagu")
+    mode_note = f" [{', '.join(mode_notes)}]" if mode_notes else ""
+
     click.echo(f"Obserwuję {config.input_dir} pod kątem znanych osób{mode_note} (Ctrl+C, aby zakończyć)…")
-    watch_for_faces(config.input_dir, recognizer, log=click.echo, stop_event=stop_event, dry_run=dry_run)
+    watch_for_faces(
+        config.input_dir,
+        recognizer,
+        log=click.echo,
+        stop_event=stop_event,
+        dry_run=dry_run,
+        confirm_fn=confirm_tag if require_confirmation else None,
+    )
 
 
 if __name__ == "__main__":

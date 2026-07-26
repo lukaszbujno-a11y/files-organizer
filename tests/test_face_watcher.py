@@ -44,6 +44,21 @@ def _run_watcher(input_dir, recognizer, stop_event, log=None, dry_run=False):
     return watcher_thread
 
 
+def test_watch_for_faces_tags_photo_already_present_at_startup(tmp_path):
+    photo = tmp_path / "existing.jpg"
+    _make_jpeg(photo)
+
+    recognizer = FakeRecognizer([RecognizedPerson(name="Anna", confidence=0.9, bbox=(0, 0, 1, 1))])
+    stop_event = threading.Event()
+    watcher_thread = _run_watcher(tmp_path, recognizer, stop_event)
+
+    try:
+        assert _wait_until(lambda: read_tagged_people(photo) == ["Anna"])
+    finally:
+        stop_event.set()
+        watcher_thread.join(timeout=5)
+
+
 def test_watch_for_faces_tags_new_photo(tmp_path):
     recognizer = FakeRecognizer([RecognizedPerson(name="Anna", confidence=0.9, bbox=(0, 0, 1, 1))])
     stop_event = threading.Event()

@@ -134,9 +134,11 @@ dopasowywane do wydarzeń kalendarza — trafiają do katalogu `Nieprzypisane`.
 ## Rozpoznawanie twarzy (proces w tle)
 
 Osobny, długo działający proces (niezależny od `files-organizer`/`run_pipeline`) obserwuje
-`input_dir` i taguje nowe zdjęcia znanymi osobami na bieżąco, w miarę jak trafiają do katalogu.
-Całe przetwarzanie (detekcja i rozpoznawanie twarzy) odbywa się wyłącznie lokalnie — zdjęcia
-ani dane z nich wyekstrahowane nie są nigdzie wysyłane.
+`input_dir` i taguje zdjęcia znanymi osobami na bieżąco, w miarę jak trafiają do katalogu.
+Przy starcie taguje też wszystkie pliki, które już tam są (obserwacja obejmuje tylko zdarzenia
+zachodzące od momentu uruchomienia, więc bez tego jednorazowego skanu plik dodany przed startem
+zostałby zignorowany). Całe przetwarzanie (detekcja i rozpoznawanie twarzy) odbywa się wyłącznie
+lokalnie — zdjęcia ani dane z nich wyekstrahowane nie są nigdzie wysyłane.
 
 ```
 pip install -e ".[face_recognition]"

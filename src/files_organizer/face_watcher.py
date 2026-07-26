@@ -8,7 +8,7 @@ from typing import Callable
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
-from .exif_reader import SUPPORTED_SUFFIXES
+from .exif_reader import SUPPORTED_SUFFIXES, iter_media_files
 from .face_recognizers import FaceRecognizer
 from .metadata import write_tags
 
@@ -83,6 +83,10 @@ def watch_for_faces(
     `dry_run` still runs detection/recognition but skips `write_tags`, logging what would have
     been tagged instead - useful for checking `known_faces` enrollment before touching real files.
 
+    On startup, every file already sitting in `input_dir` is queued up too - `watchdog` only
+    reports files that appear *after* it starts watching, so without this a file copied in
+    before the watcher was started would otherwise sit there ignored forever.
+
     Blocks until `stop_event` is set (e.g. by a Ctrl+C handler in the caller).
     """
     work_queue: "queue.Queue[Path]" = queue.Queue()
@@ -91,6 +95,9 @@ def watch_for_faces(
     observer = Observer()
     observer.schedule(handler, str(input_dir), recursive=True)
     observer.start()
+
+    for path in iter_media_files(input_dir):
+        work_queue.put(path)
 
     worker_thread = threading.Thread(
         target=_worker, args=(work_queue, recognizer, log, stop_event, dry_run), daemon=True

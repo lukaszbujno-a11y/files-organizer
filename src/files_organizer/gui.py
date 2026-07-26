@@ -258,8 +258,13 @@ class OrganizerApp:
             messagebox.showerror("Błąd", "Wybierz katalog docelowy.")
             return
         output_dir = Path(output_dir_raw)
+        dry_run = self.dry_run_var.get()
 
-        for path, label in ((input_dir, "wejściowy"), (output_dir, "wyjściowy")):
+        paths_to_check = [(input_dir, "wejściowy")]
+        if not dry_run:
+            paths_to_check.append((output_dir, "wyjściowy"))
+
+        for path, label in paths_to_check:
             volume = missing_volume(path)
             if volume is not None:
                 messagebox.showerror(
@@ -274,7 +279,6 @@ class OrganizerApp:
             mode=self.mode_var.get(),
             margin_hours=margin_hours,
         )
-        dry_run = self.dry_run_var.get()
 
         self.log_widget.configure(state="normal")
         self.log_widget.delete("1.0", "end")

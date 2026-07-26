@@ -33,7 +33,11 @@ def main(config_path: str, input_dir: Path | None, output_dir: Path | None, gui:
     if config.output_dir is None:
         raise click.UsageError("output_dir must be set via --output-dir, --gui, or in the config file.")
 
-    for path, label in ((config.input_dir, "wejściowy"), (config.output_dir, "wyjściowy")):
+    paths_to_check = [(config.input_dir, "wejściowy")]
+    if not dry_run:
+        paths_to_check.append((config.output_dir, "wyjściowy"))
+
+    for path, label in paths_to_check:
         volume = missing_volume(path)
         if volume is not None:
             raise click.UsageError(f"Katalog {label} ({path}) jest na dysku, który nie jest podłączony: {volume} nie istnieje.")

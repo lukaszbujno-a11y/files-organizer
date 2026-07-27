@@ -99,8 +99,7 @@ def test_watch_for_faces_dry_run_does_not_write_tags(tmp_path):
         photo = tmp_path / "new.jpg"
         _make_jpeg(photo)
 
-        assert _wait_until(lambda: len(recognizer.paths) == 1)
-        assert any("dry-run" in message and "Anna" in message for message in log_messages)
+        assert _wait_until(lambda: any("dry-run" in message and "Anna" in message for message in log_messages))
         assert read_tagged_people(photo) == []
     finally:
         stop_event.set()
@@ -165,7 +164,7 @@ def test_watch_for_faces_skips_files_with_no_recognized_person(tmp_path):
         watcher_thread.join(timeout=5)
 
 
-def test_watch_for_faces_skips_photo_already_tagged_with_a_person(tmp_path):
+def test_watch_for_faces_finds_new_person_on_already_tagged_photo(tmp_path):
     photo = tmp_path / "existing.jpg"
     _make_jpeg(photo)
     write_tags(photo, ["Anna"])
@@ -176,8 +175,26 @@ def test_watch_for_faces_skips_photo_already_tagged_with_a_person(tmp_path):
     watcher_thread = _run_watcher(tmp_path, recognizer, stop_event, log=log_messages.append)
 
     try:
-        assert _wait_until(lambda: any("pominięto" in message for message in log_messages))
-        assert recognizer.paths == []
+        assert _wait_until(lambda: set(read_tagged_people(photo)) == {"Anna", "Jan"})
+        assert photo in recognizer.paths
+    finally:
+        stop_event.set()
+        watcher_thread.join(timeout=5)
+
+
+def test_watch_for_faces_skips_photo_when_recognized_person_already_tagged(tmp_path):
+    photo = tmp_path / "existing.jpg"
+    _make_jpeg(photo)
+    write_tags(photo, ["Anna"])
+
+    recognizer = FakeRecognizer([RecognizedPerson(name="Anna", confidence=0.9, bbox=(0, 0, 1, 1))])
+    stop_event = threading.Event()
+    log_messages: list[str] = []
+    watcher_thread = _run_watcher(tmp_path, recognizer, stop_event, log=log_messages.append)
+
+    try:
+        assert _wait_until(lambda: any("pomijam" in message for message in log_messages))
+        assert photo in recognizer.paths
         assert read_tagged_people(photo) == ["Anna"]
     finally:
         stop_event.set()
@@ -225,7 +242,7 @@ def test_scan_for_faces_without_limit_scans_everything(tmp_path):
     assert len(detections) == 3
 
 
-def test_scan_for_faces_skips_photo_already_tagged_with_a_person(tmp_path):
+def test_scan_for_faces_finds_new_person_on_already_tagged_photo(tmp_path):
     tagged_photo = tmp_path / "tagged.jpg"
     untagged_photo = tmp_path / "untagged.jpg"
     _make_jpeg(tagged_photo)
@@ -233,13 +250,28 @@ def test_scan_for_faces_skips_photo_already_tagged_with_a_person(tmp_path):
     write_tags(tagged_photo, ["Anna"])
 
     recognizer = FakeRecognizer([RecognizedPerson(name="Jan", confidence=0.9, bbox=(0, 0, 1, 1))])
+
+    detections = scan_for_faces(tmp_path, recognizer, log=lambda msg: None)
+
+    assert {d.path for d in detections} == {tagged_photo, untagged_photo}
+    assert recognizer.paths == [tagged_photo, untagged_photo]
+    tagged_detection = next(d for d in detections if d.path == tagged_photo)
+    assert tagged_detection.names == ["Jan"]
+
+
+def test_scan_for_faces_skips_photo_when_recognized_person_already_tagged(tmp_path):
+    tagged_photo = tmp_path / "tagged.jpg"
+    _make_jpeg(tagged_photo)
+    write_tags(tagged_photo, ["Anna"])
+
+    recognizer = FakeRecognizer([RecognizedPerson(name="Anna", confidence=0.9, bbox=(0, 0, 1, 1))])
     log_messages: list[str] = []
 
     detections = scan_for_faces(tmp_path, recognizer, log=log_messages.append)
 
-    assert [d.path for d in detections] == [untagged_photo]
-    assert recognizer.paths == [untagged_photo]
-    assert any("pominięto" in message and "tagged.jpg" in message for message in log_messages)
+    assert detections == []
+    assert recognizer.paths == [tagged_photo]
+    assert any("pomijam" in message and "tagged.jpg" in message for message in log_messages)
 
 
 def test_scan_for_faces_skips_files_with_no_recognized_person(tmp_path):

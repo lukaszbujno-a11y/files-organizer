@@ -33,9 +33,10 @@ def scan_for_faces(
     detection, so a batch review can happen (e.g. one popup per photo) only after the
     whole scan is done, instead of blocking file-by-file while the scan is still running.
 
-    A file that already carries a `Person:` tag is skipped without running recognition on
-    it at all - it was already reviewed in an earlier scan/watch, so re-running face
-    detection on it (potentially expensive) would just waste time on a repeat scan.
+    A file that already carries `Person:` tags is still analyzed - it may contain other,
+    not-yet-tagged people (e.g. someone newly added to `known_faces`). Names already
+    tagged on the file are filtered out of the result, so an already-tagged person is
+    never reported (or later re-written) again; only newly recognized names surface.
 
     `limit`, when given, stops the scan as soon as that many detections (not files - files
     with nobody recognized, skipped ones, and errors don't count) have been collected,
@@ -47,9 +48,6 @@ def scan_for_faces(
         if limit is not None and len(detections) >= limit:
             log(f"Osiągnięto limit {limit} wykryć, przerywam skanowanie")
             break
-        if read_tagged_people(path):
-            log(f"{path} -> pominięto, zdjęcie ma już tag osoby")
-            continue
         log(f"Analizuję: {path}")
         try:
             people = recognizer.recognize(path)
@@ -59,7 +57,11 @@ def scan_for_faces(
         if not people:
             log(f"{path} -> nie rozpoznano znanych osób")
             continue
-        names = [person.name for person in people]
+        already_tagged = set(read_tagged_people(path))
+        names = [person.name for person in people if person.name not in already_tagged]
+        if not names:
+            log(f"{path} -> rozpoznane osoby mają już tag, pomijam")
+            continue
         log(f"{path} -> rozpoznano: {', '.join(names)}")
         detections.append(FaceDetection(path=path, names=names))
     return detections
@@ -88,9 +90,6 @@ def _process_one(
 ) -> None:
     if not path.exists():
         return
-    if read_tagged_people(path):
-        log(f"{path} -> pominięto, zdjęcie ma już tag osoby")
-        return
 
     log(f"Analizuję: {path}")
     try:
@@ -102,7 +101,11 @@ def _process_one(
     if not people:
         log(f"{path} -> nie rozpoznano znanych osób")
         return
-    names = [person.name for person in people]
+    already_tagged = set(read_tagged_people(path))
+    names = [person.name for person in people if person.name not in already_tagged]
+    if not names:
+        log(f"{path} -> rozpoznane osoby mają już tag, pomijam")
+        return
     if dry_run:
         log(f"{path} -> (dry-run) oznaczono by tagiem: {', '.join(names)}")
         return

@@ -30,3 +30,28 @@ def test_load_config_face_recognition_defaults_to_none(tmp_path):
     config = load_config(config_path)
 
     assert config.face_recognition is None
+
+
+def test_load_config_parses_location_recognition_section(tmp_path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        """
+input_dir: "./data/input"
+output_dir: "./data/output"
+location_recognition:
+  type: "reverse_geocoder"
+"""
+    )
+
+    config = load_config(config_path)
+
+    assert config.location_recognition == {"type": "reverse_geocoder"}
+
+
+def test_load_config_location_recognition_defaults_to_none(tmp_path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text('input_dir: "./data/input"\noutput_dir: "./data/output"\n')
+
+    config = load_config(config_path)
+
+    assert config.location_recognition is None

@@ -15,11 +15,13 @@ dependencies = [
 google = ["google-api-python-client>=2.0", "google-auth-oauthlib>=1.0"]
 outlook = ["O365>=2.0"]
 face_recognition = ["insightface>=0.7", "onnxruntime>=1.16", "opencv-python-headless>=4.8", "watchdog>=4.0", "numpy>=1.24", "Pillow>=10.0"]
+location_recognition = ["reverse_geocoder>=1.5", "pycountry>=23.0", "watchdog>=4.0"]
 dev = ["pytest>=8.0", "pytest-cov>=5.0", "Pillow>=10.0"]
 
 [project.scripts]
 files-organizer = "files_organizer.cli:main"
 files-organizer-faces = "files_organizer.face_cli:main"
+files-organizer-locations = "files_organizer.location_cli:main"
 
 [build-system]
 requires = ["setuptools>=68"]

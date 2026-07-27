@@ -48,3 +48,10 @@ phone_mapping:
 #   cache_path: "./known_faces/cache/embeddings.pkl"
 #   # Próg odległości kosinusowej - im niższy, tym bardziej rygorystyczne dopasowanie
 #   threshold: 0.4
+
+# Rozpoznawanie lokalizacji w tle (`files-organizer-locations --config config.yaml`).
+# Wymaga `pip install -e ".[location_recognition]"`. Działa wyłącznie na podstawie
+# współrzędnych GPS zapisanych w EXIF zdjęcia (offline, baza miast lokalna - żadne
+# dane nie są wysyłane poza ten komputer). Zdjęcia bez GPS są pomijane.
+# location_recognition:
+#   type: "reverse_geocoder"

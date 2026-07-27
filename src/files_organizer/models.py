@@ -26,3 +26,11 @@ class RecognizedPerson:
     name: str
     confidence: float
     bbox: tuple[int, int, int, int]  # x, y, width, height
+
+
+@dataclass(frozen=True)
+class RecognizedLocation:
+    city: str
+    country: str
+    latitude: float
+    longitude: float

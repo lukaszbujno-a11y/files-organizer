@@ -1,8 +1,10 @@
+import subprocess
 from pathlib import Path
 
+import pytest
 from PIL import Image
 
-from files_organizer.exif_reader import iter_media_files, read_photo_metadata
+from files_organizer.exif_reader import iter_media_files, read_gps, read_photo_metadata
 
 
 def test_iter_media_files_filters_by_supported_suffix(tmp_path):
@@ -24,3 +26,33 @@ def test_read_photo_metadata_falls_back_to_mtime_without_exif(tmp_path):
     assert photo.path == path
     assert photo.taken_at is not None
     assert photo.camera_model is None
+
+
+def test_read_gps_returns_none_without_gps_data(tmp_path):
+    path = tmp_path / "plain.jpg"
+    Image.new("RGB", (2, 2)).save(path, "JPEG")
+
+    assert read_gps(path) is None
+
+
+def test_read_gps_reads_coordinates(tmp_path):
+    path = tmp_path / "geo.jpg"
+    Image.new("RGB", (2, 2)).save(path, "JPEG")
+    subprocess.run(
+        [
+            "exiftool",
+            "-overwrite_original",
+            "-GPSLatitude=50.0",
+            "-GPSLatitudeRef=N",
+            "-GPSLongitude=19.9",
+            "-GPSLongitudeRef=E",
+            str(path),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    coords = read_gps(path)
+
+    assert coords == pytest.approx((50.0, 19.9))

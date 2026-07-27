@@ -53,6 +53,26 @@ def read_photo_metadata(path: Path) -> Photo:
     return Photo(path=path, taken_at=taken_at, camera_model=camera_model)
 
 
+def read_gps(path: Path) -> tuple[float, float] | None:
+    """Return `(latitude, longitude)` from `path`'s EXIF GPS tags, or None if absent/unreadable."""
+    try:
+        result = subprocess.run(
+            ["exiftool", "-j", "-n", "-GPSLatitude", "-GPSLongitude", str(path)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        data = json.loads(result.stdout)[0]
+    except (subprocess.CalledProcessError, FileNotFoundError, json.JSONDecodeError, IndexError):
+        return None
+
+    latitude = data.get("GPSLatitude")
+    longitude = data.get("GPSLongitude")
+    if latitude is None or longitude is None:
+        return None
+    return float(latitude), float(longitude)
+
+
 def iter_media_files(input_dir: Path):
     for path in sorted(input_dir.rglob("*")):
         if path.is_file() and path.suffix.lower() in SUPPORTED_SUFFIXES:

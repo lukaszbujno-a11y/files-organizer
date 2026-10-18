@@ -1,8 +1,8 @@
 from .base import LocationRecognizer
-from .geocoder import DEFAULT_USER_AGENT, NominatimGeocoder, ReverseGeocoderGeocoder
+from .geocoder import DEFAULT_USER_AGENT, GeocoderUnavailableError, NominatimGeocoder, ReverseGeocoderGeocoder
 from .reverse_geocoder_recognizer import ReverseGeocoderRecognizer
 
-__all__ = ["LocationRecognizer", "ReverseGeocoderRecognizer", "get_location_recognizer"]
+__all__ = ["GeocoderUnavailableError", "LocationRecognizer", "ReverseGeocoderRecognizer", "get_location_recognizer"]
 
 
 def get_location_recognizer(config: dict) -> LocationRecognizer:
@@ -16,6 +16,7 @@ def get_location_recognizer(config: dict) -> LocationRecognizer:
             language=config.get("language", "pl"),
             cache_path=config.get("cache_path"),
             user_agent=config.get("user_agent", DEFAULT_USER_AGENT),
+            cache_precision=config.get("cache_precision", 2),
         )
         return ReverseGeocoderRecognizer(geocoder=geocoder)
 

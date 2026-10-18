@@ -135,8 +135,8 @@ def test_nominatim_caches_results_on_disk(tmp_path):
 
     geocoder, calls = make_nominatim(tmp_path, [{"address": {"city": "Kraków", "country": "Polska"}}])
     geocoder.lookup(50.0612, 19.9371)
-    # within ~100 m - same cache key, no second request
-    assert geocoder.lookup(50.0614, 19.9369) == ("Kraków", "Polska")
+    # within ~1 km - same cache key, no second request
+    assert geocoder.lookup(50.0581, 19.9402) == ("Kraków", "Polska")
     assert len(calls) == 1
 
     def fail(url, headers):
@@ -161,3 +161,49 @@ def test_get_location_recognizer_builds_nominatim(tmp_path):
 
     assert isinstance(recognizer.geocoder, NominatimGeocoder)
     assert recognizer.geocoder.cache_path == tmp_path / "c.json"
+
+
+def test_nominatim_raises_when_offline_and_not_cached(tmp_path):
+    import urllib.error
+
+    from files_organizer.location_recognizers import GeocoderUnavailableError
+    from files_organizer.location_recognizers.geocoder import NominatimGeocoder
+
+    def offline(url, headers):
+        raise urllib.error.URLError("no network")
+
+    geocoder = NominatimGeocoder(cache_path=tmp_path / "cache.json", min_interval=0, fetch=offline)
+
+    with pytest.raises(GeocoderUnavailableError):
+        geocoder.lookup(48.21, 16.37)
+
+
+def test_nominatim_serves_cached_name_when_offline(tmp_path):
+    import urllib.error
+
+    from files_organizer.location_recognizers.geocoder import NominatimGeocoder
+
+    geocoder, _ = make_nominatim(tmp_path, [{"address": {"city": "Wiedeń", "country": "Austria"}}])
+    geocoder.lookup(48.21, 16.37)
+
+    def offline(url, headers):
+        raise urllib.error.URLError("no network")
+
+    reloaded = NominatimGeocoder(cache_path=tmp_path / "cache.json", min_interval=0, fetch=offline)
+    assert reloaded.lookup(48.2112, 16.3688) == ("Wiedeń", "Austria")
+
+
+def test_nominatim_cache_precision_is_configurable(tmp_path):
+    from files_organizer.location_recognizers.geocoder import NominatimGeocoder
+
+    calls = []
+
+    def fetch(url, headers):
+        calls.append(url)
+        return {"address": {"city": "Kraków", "country": "Polska"}}
+
+    geocoder = NominatimGeocoder(cache_path=tmp_path / "c.json", min_interval=0, cache_precision=1, fetch=fetch)
+    geocoder.lookup(50.06, 19.96)
+    geocoder.lookup(50.09, 19.99)  # ~4 km away, same 0.1° cell (50.1, 20.0)
+
+    assert len(calls) == 1

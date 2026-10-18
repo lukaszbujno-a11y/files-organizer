@@ -9,6 +9,7 @@ import click
 
 from .config import load_config
 from .gui import launch_app
+from .location_recognizers import GeocoderUnavailableError
 from .pipeline import run_pipeline
 from .volumes import missing_volume
 
@@ -81,7 +82,10 @@ def main(
 
     signal.signal(signal.SIGINT, handle_sigint)
 
-    run_pipeline(config, dry_run, log=click.echo, stop_event=stop_event)
+    try:
+        run_pipeline(config, dry_run, log=click.echo, stop_event=stop_event)
+    except GeocoderUnavailableError as exc:
+        raise click.ClickException(f"{exc}. Przerwano przed kopiowaniem/przenoszeniem - żaden plik nie został ruszony.") from exc
     if stop_event.is_set():
         click.echo("Zatrzymano na życzenie użytkownika.")
 

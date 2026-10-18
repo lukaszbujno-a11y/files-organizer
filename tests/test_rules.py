@@ -122,3 +122,18 @@ def test_location_placed_photos_do_not_count_towards_date_threshold(tmp_path):
     results = classify_photos(photos_on(datetime(2026, 7, 15), 6), config, events=[], location_recognizer=recognizer)
 
     assert statuses(results) == [MatchStatus.LOCATION] + [MatchStatus.UNMATCHED] * 5
+
+
+def test_unreachable_geocoder_aborts_classification(tmp_path):
+    import pytest
+
+    from files_organizer.location_recognizers import GeocoderUnavailableError
+
+    class OfflineRecognizer(LocationRecognizer):
+        def recognize(self, path):
+            raise GeocoderUnavailableError("offline")
+
+    config = make_config(tmp_path, rules=("location", "date"))
+
+    with pytest.raises(GeocoderUnavailableError):
+        classify_photos(photos_on(datetime(2026, 7, 15), 1), config, events=[], location_recognizer=OfflineRecognizer())

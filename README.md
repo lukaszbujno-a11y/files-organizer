@@ -70,8 +70,12 @@ Nazwy są domyślnie po polsku (`location_recognition.language: "pl"`, więc
 - `nominatim` — online (OpenStreetMap): miasta i kraje po polsku, z polskimi znakami
   (`2026-07-15 Austria-Wiedeń`, `Kraków`, `Lwów`). Do serwera wysyłane są **tylko
   współrzędne GPS** zdjęcia (nie samo zdjęcie). Serwer pozwala na 1 zapytanie/s, więc
-  wyniki są cache'owane w `~/.cache/files-organizer/nominatim.json` (z dokładnością ~100 m).
-  Zdjęcia z jednego miejsca i ponowne uruchomienia korzystają z cache.
+  wyniki są cache'owane w `~/.cache/files-organizer/nominatim.json` (z dokładnością ~1 km,
+  `cache_precision: 2`; `1` to ~10 km). Zdjęcia z jednego miejsca i ponowne uruchomienia
+  korzystają z cache. **Bez internetu** nazwy są brane z cache, a gdy którejś tam nie ma,
+  cały proces jest przerywany z błędem — w `files-organizer` jeszcze przed kopiowaniem/
+  przenoszeniem (żaden plik nie zostaje ruszony), w `files-organizer-locations` przed
+  zapisem kolejnych tagów.
 - `reverse_geocoder` (domyślny) — w pełni offline, wymaga
   `pip install -e ".[location_recognition]"`. Kraje są po polsku, ale miasta pochodzą z bazy
   GeoNames i są angielskie, bez polskich znaków (`Krakow`, `Vienna`).

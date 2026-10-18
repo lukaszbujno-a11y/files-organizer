@@ -80,11 +80,16 @@ phone_mapping:
 #                      ("Kraków", "Wiedeń", "Lwów"). Bez dodatkowych zależności.
 #                      UWAGA: współrzędne GPS (nie same zdjęcia) są wysyłane do
 #                      nominatim.openstreetmap.org. Limit serwera to 1 zapytanie/s, więc
-#                      wyniki są cache'owane na dysku (z dokładnością ~100 m) - ponowne
-#                      uruchomienie na tych samych zdjęciach nic już nie wysyła.
+#                      wyniki są cache'owane na dysku - ponowne uruchomienie na tych
+#                      samych zdjęciach nic już nie wysyła. Bez internetu nazwy brane są
+#                      z cache; gdy jej tam nie ma, cały proces jest przerywany (przed
+#                      kopiowaniem/przenoszeniem, więc żaden plik nie zostaje ruszony).
 # location_recognition:
 #   type: "nominatim"            # albo "reverse_geocoder"
 #   # Język nazw w tagach Location:/Country: i katalogach reguły location (domyślnie "pl").
 #   language: "pl"
 #   # Tylko nominatim: plik cache (domyślnie ~/.cache/files-organizer/nominatim.json)
 #   # cache_path: "~/.cache/files-organizer/nominatim.json"
+#   # Tylko nominatim: dokładność cache w miejscach po przecinku współrzędnych
+#   # (2 = ~1 km, domyślnie; 1 = ~10 km - mniej zapytań, ale ryzyko nazwy sąsiedniej miejscowości)
+#   # cache_precision: 2

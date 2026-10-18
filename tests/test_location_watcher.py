@@ -275,3 +275,37 @@ def test_scan_for_locations_logs_and_continues_after_recognition_error(tmp_path)
 
     assert [d.path for d in detections] == [good_photo]
     assert any("błąd rozpoznawania lokalizacji" in message for message in log_messages)
+
+
+class OfflineRecognizer(LocationRecognizer):
+    def recognize(self, path):
+        from files_organizer.location_recognizers import GeocoderUnavailableError
+
+        raise GeocoderUnavailableError("offline")
+
+
+def test_scan_for_locations_aborts_when_geocoder_unavailable(tmp_path):
+    import pytest
+
+    from files_organizer.location_recognizers import GeocoderUnavailableError
+
+    _make_jpeg(tmp_path / "photo.jpg")
+
+    with pytest.raises(GeocoderUnavailableError):
+        scan_for_locations(tmp_path, OfflineRecognizer(), log=lambda msg: None)
+
+
+def test_watch_for_locations_stops_when_geocoder_unavailable(tmp_path):
+    _make_jpeg(tmp_path / "photo.jpg")
+    log_messages: list[str] = []
+    stop_event = threading.Event()
+
+    watcher_thread = _run_watcher(tmp_path, OfflineRecognizer(), stop_event, log=log_messages.append)
+
+    try:
+        assert _wait_until(stop_event.is_set)
+        watcher_thread.join(timeout=5)
+        assert not watcher_thread.is_alive()
+        assert any("Zatrzymuję obserwator" in message for message in log_messages)
+    finally:
+        stop_event.set()

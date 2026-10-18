@@ -7,7 +7,7 @@ import click
 
 from .config import load_config
 from .exif_reader import iter_media_files
-from .location_recognizers import get_location_recognizer
+from .location_recognizers import GeocoderUnavailableError, get_location_recognizer
 from .location_watcher import LocationDetection, scan_for_locations, watch_for_locations
 from .metadata import read_tagged_locations, remove_location_tags, write_location_tags
 from .volumes import missing_volume
@@ -135,7 +135,10 @@ def _run_untag_all(input_dir) -> None:
 def _run_scan_cli(config, dry_run: bool, auto: bool, limit: int | None = None) -> None:
     recognizer = get_location_recognizer(config.location_recognition)
     click.echo(f"Skanuję {config.input_dir}…")
-    detections = scan_for_locations(config.input_dir, recognizer, log=click.echo, limit=limit)
+    try:
+        detections = scan_for_locations(config.input_dir, recognizer, log=click.echo, limit=limit)
+    except GeocoderUnavailableError as exc:
+        raise click.ClickException(f"{exc}. Przerwano skanowanie, żadne tagi nie zostały zapisane.") from exc
     if not detections:
         click.echo("Nie rozpoznano żadnej lokalizacji.")
         return

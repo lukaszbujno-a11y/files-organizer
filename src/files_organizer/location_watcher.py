@@ -10,7 +10,7 @@ from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
 from .exif_reader import SUPPORTED_SUFFIXES, iter_media_files
-from .location_recognizers import LocationRecognizer
+from .location_recognizers import GeocoderUnavailableError, LocationRecognizer
 from .metadata import read_tagged_locations, write_location_tags
 from .models import RecognizedLocation
 
@@ -51,6 +51,8 @@ def scan_for_locations(
         log(f"Analizuję: {path}")
         try:
             location = recognizer.recognize(path)
+        except GeocoderUnavailableError:
+            raise
         except Exception as exc:
             log(f"{path} -> błąd rozpoznawania lokalizacji: {exc}")
             continue
@@ -91,6 +93,8 @@ def _process_one(
     log(f"Analizuję: {path}")
     try:
         location = recognizer.recognize(path)
+    except GeocoderUnavailableError:
+        raise
     except Exception as exc:
         log(f"{path} -> błąd rozpoznawania lokalizacji: {exc}")
         return
@@ -123,6 +127,10 @@ def _worker(
             continue
         try:
             _process_one(path, recognizer, log, dry_run, confirm_fn)
+        except GeocoderUnavailableError as exc:
+            # no point tagging the rest with no way to resolve names - stop the whole watcher
+            log(f"BŁĄD: {exc}. Zatrzymuję obserwator lokalizacji.")
+            stop_event.set()
         finally:
             work_queue.task_done()
 
@@ -153,7 +161,8 @@ def watch_for_locations(
     On startup, every file already sitting in `input_dir` is queued up too - `watchdog` only
     reports files that appear *after* it starts watching.
 
-    Blocks until `stop_event` is set (e.g. by a Ctrl+C handler in the caller).
+    Blocks until `stop_event` is set (e.g. by a Ctrl+C handler in the caller). The worker sets
+    it itself when the geocoder can't be reached (`GeocoderUnavailableError`).
     """
     work_queue: "queue.Queue[Path]" = queue.Queue()
 

@@ -4,7 +4,7 @@ from collections import Counter
 from typing import Callable
 
 from .config import Config
-from .location_recognizers import LocationRecognizer
+from .location_recognizers import GeocoderUnavailableError, LocationRecognizer
 from .matcher import MatchResult, MatchStatus, match_photo_to_event
 from .models import Event, Photo
 
@@ -71,7 +71,7 @@ def _apply_rule(
             return None
         try:
             location = location_recognizer.recognize(photo.path)
-        except ImportError:
+        except (ImportError, GeocoderUnavailableError):
             raise
         except Exception as exc:
             if log is not None:

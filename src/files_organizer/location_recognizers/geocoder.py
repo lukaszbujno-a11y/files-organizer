@@ -5,6 +5,7 @@ import gettext
 import json
 import threading
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from abc import ABC, abstractmethod
@@ -12,10 +13,20 @@ from pathlib import Path
 from typing import Callable
 
 
+class GeocoderUnavailableError(RuntimeError):
+    """The geocoding service can't be reached (no internet, server error) and the answer isn't
+    cached either. Unlike "nothing found at these coordinates", this must stop the whole run
+    instead of quietly skipping the photo - otherwise a dropped connection would silently
+    leave every remaining photo unplaced."""
+
+
 class Geocoder(ABC):
     @abstractmethod
     def lookup(self, latitude: float, longitude: float) -> tuple[str, str] | None:
-        """Return `(city, country)` for the given coordinates, or None if nothing was found."""
+        """Return `(city, country)` for the given coordinates, or None if nothing was found.
+
+        Raises `GeocoderUnavailableError` when the lookup itself couldn't be done.
+        """
         ...
 
 
@@ -90,8 +101,14 @@ class NominatimGeocoder(Geocoder):
     This sends the photo's GPS coordinates (never the photo itself) to nominatim.openstreetmap.org.
     The public server's usage policy allows at most 1 request per second and requires an
     identifying User-Agent, so requests are throttled, and every result (including "nothing
-    here") is cached on disk under coordinates rounded to ~100 m - photos from one trip mostly
+    here") is cached on disk under rounded coordinates - photos from one trip mostly
     hit the cache, and re-running over the same photos sends nothing again.
+
+    The cache key is the coordinates rounded to `cache_precision` decimal places (2 = ~1 km,
+    1 = ~10 km) - enough for a city-level name while letting nearby photos share one request.
+
+    When the server can't be reached and the coordinates aren't cached, `lookup` raises
+    `GeocoderUnavailableError` rather than returning None.
     """
 
     def __init__(
@@ -100,26 +117,30 @@ class NominatimGeocoder(Geocoder):
         cache_path: str | Path | None = None,
         user_agent: str = DEFAULT_USER_AGENT,
         min_interval: float = 1.0,
+        cache_precision: int = 2,
         fetch: FetchFn | None = None,
     ):
         self.language = language
         self.cache_path = Path(cache_path or DEFAULT_NOMINATIM_CACHE).expanduser()
         self.user_agent = user_agent
         self.min_interval = min_interval
+        self.cache_precision = cache_precision
         self.fetch = fetch or _http_get_json
         self._cache: dict[str, list[str] | None] | None = None
         self._last_request = 0.0
         self._lock = threading.Lock()
 
     def lookup(self, latitude: float, longitude: float) -> tuple[str, str] | None:
-        key = f"{self.language}:{latitude:.3f},{longitude:.3f}"
+        lat, lon = round(latitude, self.cache_precision), round(longitude, self.cache_precision)
+        key = f"{self.language}:{lat:.{self.cache_precision}f},{lon:.{self.cache_precision}f}"
         with self._lock:
             cache = self._load_cache()
             if key in cache:
                 cached = cache[key]
                 return tuple(cached) if cached is not None else None
 
-            found = self._request(latitude, longitude)
+            # query the rounded point, so the cached name is the one for the whole cache cell
+            found = self._request(lat, lon)
             cache[key] = list(found) if found is not None else None
             self._save_cache()
             return found
@@ -133,6 +154,10 @@ class NominatimGeocoder(Geocoder):
         )
         try:
             data = self.fetch(f"{NOMINATIM_URL}?{query}", {"User-Agent": self.user_agent})
+        except (urllib.error.URLError, OSError, json.JSONDecodeError) as exc:
+            raise GeocoderUnavailableError(
+                f"Brak połączenia z {NOMINATIM_URL} i brak nazwy w cache dla ({latitude}, {longitude}): {exc}"
+            ) from exc
         finally:
             self._last_request = time.monotonic()
 

@@ -8,7 +8,7 @@ from pathlib import Path
 import click
 
 from .calendar_sources import filter_events_by_tag, get_calendar_source
-from .config import Config, load_config
+from .config import ALL_RULES, Config, load_config, with_rule_enabled
 from .models import Event
 from .pipeline import run_pipeline
 from .volumes import missing_volume
@@ -22,6 +22,8 @@ except ImportError as exc:  # pragma: no cover - depends on the Python install
     _TK_IMPORT_ERROR = exc
 
 _DONE = object()
+
+_RULE_LABELS = {"calendar": "Kalendarz", "location": "Lokalizacja", "date": "Data"}
 
 
 class OrganizerApp:
@@ -43,6 +45,11 @@ class OrganizerApp:
         self.mode_var = tk.StringVar(value=config.mode)
         self.margin_var = tk.StringVar(value=str(config.margin_hours))
         self.dry_run_var = tk.BooleanVar(value=False)
+        self.rules = config.rules
+        self.rule_vars = {rule: tk.BooleanVar(value=rule in config.rules) for rule in ALL_RULES}
+        self.home_country_var = tk.StringVar(value=config.home_country or "")
+        self.date_threshold_var = tk.StringVar(value=str(config.date_group_threshold))
+        self.rules_order_var = tk.StringVar()
         self.status_var = tk.StringVar(value="Gotowy.")
 
         self._build_widgets()
@@ -81,6 +88,23 @@ class OrganizerApp:
         ttk.Checkbutton(options_frame, text="Tylko podgląd (dry-run)", variable=self.dry_run_var).grid(
             row=0, column=5, sticky="w", **pad
         )
+
+        rules_frame = ttk.LabelFrame(self.root, text="Reguły (kolejność priorytetu z config.yaml)")
+        rules_frame.pack(fill="x", **pad)
+
+        ttk.Checkbutton(
+            rules_frame, text="Kalendarz", variable=self.rule_vars["calendar"], command=self._on_rules_changed
+        ).grid(row=0, column=0, sticky="w", **pad)
+        ttk.Checkbutton(
+            rules_frame, text="Lokalizacja poza krajem:", variable=self.rule_vars["location"], command=self._on_rules_changed
+        ).grid(row=0, column=1, sticky="w", **pad)
+        ttk.Entry(rules_frame, textvariable=self.home_country_var, width=12).grid(row=0, column=2, sticky="w")
+        ttk.Checkbutton(
+            rules_frame, text="Data, gdy zdjęć z dnia więcej niż:", variable=self.rule_vars["date"], command=self._on_rules_changed
+        ).grid(row=0, column=3, sticky="w", **pad)
+        ttk.Entry(rules_frame, textvariable=self.date_threshold_var, width=4).grid(row=0, column=4, sticky="w")
+        ttk.Label(rules_frame, textvariable=self.rules_order_var).grid(row=1, column=0, columnspan=5, sticky="w", **pad)
+        self._update_rules_order_label()
 
         actions_frame = ttk.Frame(self.root)
         actions_frame.pack(side="bottom", fill="x", **pad)
@@ -124,6 +148,15 @@ class OrganizerApp:
         self.calendar_tree.pack(side="left", fill="both", expand=True, padx=(4, 0), pady=(0, 4))
         scrollbar.pack(side="right", fill="y", pady=(0, 4))
 
+    def _on_rules_changed(self) -> None:
+        for rule, var in self.rule_vars.items():
+            self.rules = with_rule_enabled(self.rules, rule, var.get())
+        self._update_rules_order_label()
+
+    def _update_rules_order_label(self) -> None:
+        order = " → ".join(_RULE_LABELS[rule] for rule in self.rules) or "brak — żadne zdjęcie nie zostanie przypisane"
+        self.rules_order_var.set(f"Kolejność: {order}")
+
     def _path_row(self, parent: ttk.LabelFrame, label: str, var: tk.StringVar, row: int) -> None:
         ttk.Label(parent, text=label).grid(row=row, column=0, sticky="w", padx=8, pady=4)
         ttk.Entry(parent, textvariable=var).grid(row=row, column=1, sticky="ew", padx=4)
@@ -158,6 +191,12 @@ class OrganizerApp:
         self.output_var.set(str(config.output_dir) if config.output_dir else "")
         self.mode_var.set(config.mode)
         self.margin_var.set(str(config.margin_hours))
+        self.rules = config.rules
+        for rule, var in self.rule_vars.items():
+            var.set(rule in config.rules)
+        self.home_country_var.set(config.home_country or "")
+        self.date_threshold_var.set(str(config.date_group_threshold))
+        self._update_rules_order_label()
         self._append_log(f"Wczytano konfigurację: {path}")
         self._load_calendar_preview()
 
@@ -252,6 +291,14 @@ class OrganizerApp:
             messagebox.showerror("Błąd", "Margines musi być liczbą.")
             return
 
+        try:
+            date_group_threshold = int(self.date_threshold_var.get())
+            if date_group_threshold < 0:
+                raise ValueError
+        except ValueError:
+            messagebox.showerror("Błąd", "Liczba zdjęć z dnia musi być nieujemną liczbą całkowitą.")
+            return
+
         input_dir = Path(self.input_var.get())
         output_dir_raw = self.output_var.get().strip()
         if not output_dir_raw:
@@ -278,6 +325,9 @@ class OrganizerApp:
             output_dir=output_dir,
             mode=self.mode_var.get(),
             margin_hours=margin_hours,
+            rules=self.rules,
+            home_country=self.home_country_var.get().strip() or None,
+            date_group_threshold=date_group_threshold,
         )
 
         self.log_widget.configure(state="normal")

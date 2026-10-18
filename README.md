@@ -38,6 +38,24 @@ Jeżeli zdjęcie nie pasuje do żadnego wydarzenia:
 Nieprzypisane/
     2026-07
 
+## Reguły przypisywania (kalendarz → lokalizacja → data)
+
+Oprócz kalendarza zdjęcie można przypisać na podstawie lokalizacji lub samej daty.
+Reguły ustawia się w `config.yaml` (`rules`) — są sprawdzane po kolei i wygrywa
+pierwsza pasująca. Domyślnie włączony jest tylko kalendarz:
+
+| Reguła     | Kiedy pasuje                                                                 | Katalog                               |
+|------------|------------------------------------------------------------------------------|---------------------------------------|
+| `calendar` | zdjęcie mieści się w wydarzeniu (± `margin_hours`)                           | `2026/07/2026-07-15 Wakacje Chorwacja` |
+| `location` | GPS z EXIF wskazuje kraj inny niż `home_country`                             | `2026/07/2026-07-15 Croatia-Split`    |
+| `date`     | z danego dnia do tej reguły dotarło **więcej niż** `date_group_threshold` (domyślnie 5) zdjęć | `2026/07/2026-07-15`                  |
+
+Zdjęcia przypisane przez wcześniejszą regułę nie liczą się do progu reguły `date`.
+Kolejność można zmienić (np. `rules: ["calendar", "date", "location"]`), a w GUI
+(sekcja „Reguły”) i w CLI (`--rules calendar,location,date`, `--date-group-threshold 10`)
+można reguły włączać/wyłączać i zmieniać próg na jedno uruchomienie.
+Reguła `location` wymaga `pip install -e ".[location_recognition]"`.
+
 Uwzględnienie telefonu (opcja opcjonalna)
 Model telefonu można wykorzystać np. do rozdzielenia zdjęć na postawie tagu informacji w kalendarzu o osobie która jest na dydarzeniu. Doposowanie na postawie słownika TAG - TELEFON (marka model) - KATALOG NADRZEDNY
 

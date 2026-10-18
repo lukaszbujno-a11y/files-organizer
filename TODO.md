@@ -1,6 +1,8 @@
 # TODO
 
-1. Weryfikacja zdjęć na podstawie metadanych lokalizacji (EXIF GPS). Jeśli
+1. [Zaimplementowane jako reguła `location` w `rules.py`, patrz README „Reguły
+   przypisywania”. Nazwy krajów są na razie angielskie (pycountry), np.
+   `2026-07-15 Croatia-Split`.] Weryfikacja zdjęć na podstawie metadanych lokalizacji (EXIF GPS). Jeśli
    zdjęcie zostało zrobione w lokalizacji poza krajem wskazanym w konfiguracji
    (np. `home_country: "Polska"`), utwórz katalog w uzgodnionej strukturze
    nazwany wg wzorca `data Kraj-Miasto`, np.:

@@ -19,8 +19,35 @@ from .volumes import missing_volume
 @click.option("--output-dir", "output_dir", type=click.Path(path_type=Path), default=None, help="Override output_dir from config.")
 @click.option("--gui", is_flag=True, help="Otwórz okno graficzne do wyboru ścieżek, trybu (kopiuj/przenieś), konfiguracji i uruchomienia akcji.")
 @click.option("--dry-run", is_flag=True, help="Print planned actions without copying/moving files.")
-def main(config_path: str, input_dir: Path | None, output_dir: Path | None, gui: bool, dry_run: bool) -> None:
+@click.option(
+    "--rules",
+    default=None,
+    metavar="RULES",
+    help="Nadpisz kolejność reguł z configu, np. calendar,location,date (pierwsza pasująca wygrywa).",
+)
+@click.option(
+    "--date-group-threshold",
+    type=click.IntRange(min=0),
+    default=None,
+    help="Reguła 'date': katalog z samą datą powstaje, gdy zdjęć z dnia jest więcej niż N.",
+)
+def main(
+    config_path: str,
+    input_dir: Path | None,
+    output_dir: Path | None,
+    gui: bool,
+    dry_run: bool,
+    rules: str | None,
+    date_group_threshold: int | None,
+) -> None:
     config = load_config(config_path)
+    try:
+        if rules is not None:
+            config = replace(config, rules=tuple(rule.strip() for rule in rules.split(",") if rule.strip()))
+        if date_group_threshold is not None:
+            config = replace(config, date_group_threshold=date_group_threshold)
+    except ValueError as exc:
+        raise click.BadParameter(str(exc)) from exc
     if input_dir is not None:
         config = replace(config, input_dir=input_dir)
     if output_dir is not None:

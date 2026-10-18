@@ -15,6 +15,25 @@ mode: "copy"
 # Margines dopasowania zdjęcia do wydarzenia (godziny)
 margin_hours: 2
 
+# Reguły przypisywania zdjęć, sprawdzane w podanej kolejności - wygrywa pierwsza
+# pasująca. Zdjęcie, do którego nie pasuje żadna reguła, jest pomijane.
+#   calendar - wydarzenie z kalendarza:    2026/07/2026-07-15 Wakacje Chorwacja
+#   location - GPS z EXIF poza home_country: 2026/07/2026-07-15 Croatia-Split
+#              (wymaga `pip install -e ".[location_recognition]"`)
+#   date     - sama data, ale tylko gdy z danego dnia do tej reguły dotrze
+#              więcej niż date_group_threshold zdjęć: 2026/07/2026-07-15
+# Zdjęcia przypisane przez wcześniejsze reguły nie liczą się do progu daty.
+rules: ["calendar"]
+# rules: ["calendar", "location", "date"]
+
+# Kraj "domowy" dla reguły location - zdjęcia z tego kraju ta reguła pomija.
+# Nazwa angielska, jak w ISO 3166 (np. "Poland", "Croatia"). Bez ustawienia
+# reguła przypisuje każde zdjęcie z rozpoznaną lokalizacją.
+# home_country: "Poland"
+
+# Próg reguły date: katalog z samą datą powstaje od date_group_threshold + 1 zdjęć.
+date_group_threshold: 5
+
 calendar:
   # ics | google | outlook
   type: "ics"

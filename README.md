@@ -139,13 +139,23 @@ Tokena nie pozyskuje się ręcznie — potrzebny jest tylko plik `credentials.js
 (klient OAuth typu „Desktop app”), a `token.json` aplikacja tworzy sama po pierwszym
 zalogowaniu w przeglądarce.
 
-1. Utwórz projekt w Google Cloud, włącz Google Calendar API, skonfiguruj ekran zgody OAuth
-   i utwórz klienta OAuth typu **Desktop app** — krok po kroku opisuje to oficjalny
-   quickstart: https://developers.google.com/workspace/calendar/api/quickstart/python
-   (sekcja „Set up your environment”).
-2. Pobierz JSON klienta i zapisz go jako `~/.config/files-organizer/credentials.json`
-   (poza repozytorium — to sekret).
-3. Zainstaluj zależności i ustaw sekcję `calendar` w `config.yaml`:
+1. **Projekt i API** — wybierz/utwórz projekt w [Google Cloud Console](https://console.cloud.google.com/)
+   i [włącz Google Calendar API](https://console.cloud.google.com/apis/library/calendar-json.googleapis.com).
+2. **Ekran zgody** — w [Google Auth Platform → Branding](https://console.cloud.google.com/auth/branding)
+   podaj nazwę aplikacji (np. `files-organizer`) i swój e-mail, typ odbiorców **External**.
+   W [Audience](https://console.cloud.google.com/auth/audience) dodaj swój adres Gmail jako
+   **Test user** (albo od razu „Publish app” — patrz uwaga niżej).
+   Dokumentacja: https://developers.google.com/workspace/guides/configure-oauth-consent
+3. **Klient OAuth** — w [Clients](https://console.cloud.google.com/auth/clients) kliknij
+   „Create client”, typ **Desktop app**, nazwa dowolna → „Create”.
+   W oknie, które się pojawi, kliknij **Download JSON** — sekret klienta jest widoczny/do
+   pobrania tylko w tym momencie; jeśli go przegapisz, dodaj nowy sekret w szczegółach klienta
+   albo utwórz nowego klienta.
+   Dokumentacja: https://developers.google.com/workspace/guides/create-credentials#desktop-app
+4. Zapisz pobrany plik jako `~/.config/files-organizer/credentials.json`
+   (poza repozytorium — to sekret) i usuń stary `token.json`, jeśli istnieje.
+   Pełny przykład dla Pythona (te same kroki): https://developers.google.com/workspace/calendar/api/quickstart/python
+5. Zainstaluj zależności i ustaw sekcję `calendar` w `config.yaml`:
 
    ```
    pip install -e ".[google]"
@@ -159,7 +169,7 @@ zalogowaniu w przeglądarce.
      # calendar_id: "primary"   # domyślnie główny kalendarz
    ```
 
-4. Przy pierwszym uruchomieniu otworzy się przeglądarka z prośbą o zgodę (dostęp tylko do
+6. Przy pierwszym uruchomieniu otworzy się przeglądarka z prośbą o zgodę (dostęp tylko do
    odczytu wydarzeń). Po zatwierdzeniu `token.json` zapisze się pod `token_file` i kolejne
    uruchomienia nie będą już wymagały logowania. Aby wymusić ponowne logowanie, usuń ten plik.
 

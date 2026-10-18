@@ -42,8 +42,6 @@ class OrganizerApp:
         self.stop_event: threading.Event | None = None
 
         root.title("Files Organizer")
-        root.geometry("760x600")
-        root.minsize(600, 460)
 
         self.config_path_var = tk.StringVar(value=config_path)
         self.input_var = tk.StringVar(value=str(config.input_dir))
@@ -59,6 +57,11 @@ class OrganizerApp:
         self.status_var = tk.StringVar(value="Gotowy.")
 
         self._build_widgets()
+        # as wide as the widest row (catalog filters, rules) needs - no fixed width to fall behind new widgets
+        root.update_idletasks()
+        width = max(root.winfo_reqwidth(), 1000)
+        root.geometry(f"{width}x600")
+        root.minsize(root.winfo_reqwidth(), 460)
         self._poll_log_queue()
         self._poll_calendar_queue()
         self._load_calendar_preview()

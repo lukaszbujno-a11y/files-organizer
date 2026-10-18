@@ -7,6 +7,7 @@ from pathlib import Path
 
 import click
 
+from .catalog import open_catalog
 from .config import load_config
 from .gui import launch_app
 from .location_recognizers import GeocoderUnavailableError
@@ -82,10 +83,14 @@ def main(
 
     signal.signal(signal.SIGINT, handle_sigint)
 
+    catalog = open_catalog(config)
     try:
-        run_pipeline(config, dry_run, log=click.echo, stop_event=stop_event)
+        run_pipeline(config, dry_run, log=click.echo, stop_event=stop_event, catalog=catalog)
     except GeocoderUnavailableError as exc:
         raise click.ClickException(f"{exc}. Przerwano przed kopiowaniem/przenoszeniem - żaden plik nie został ruszony.") from exc
+    finally:
+        if catalog is not None:
+            catalog.close()
     if stop_event.is_set():
         click.echo("Zatrzymano na życzenie użytkownika.")
 

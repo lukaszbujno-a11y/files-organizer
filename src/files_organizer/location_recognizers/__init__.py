@@ -1,15 +1,18 @@
 from .base import LocationRecognizer
 from .geocoder import DEFAULT_USER_AGENT, GeocoderUnavailableError, NominatimGeocoder, ReverseGeocoderGeocoder
-from .reverse_geocoder_recognizer import ReverseGeocoderRecognizer
+from .reverse_geocoder_recognizer import GpsReader, ReverseGeocoderRecognizer
 
 __all__ = ["GeocoderUnavailableError", "LocationRecognizer", "ReverseGeocoderRecognizer", "get_location_recognizer"]
 
 
-def get_location_recognizer(config: dict) -> LocationRecognizer:
+def get_location_recognizer(config: dict, gps_reader: GpsReader | None = None) -> LocationRecognizer:
+    """`gps_reader`, when given, replaces reading GPS from the file's EXIF (e.g. with the catalog's copy)."""
     recognizer_type = config.get("type", "reverse_geocoder")
 
     if recognizer_type == "reverse_geocoder":
-        return ReverseGeocoderRecognizer(geocoder=ReverseGeocoderGeocoder(language=config.get("language", "pl")))
+        return ReverseGeocoderRecognizer(
+            geocoder=ReverseGeocoderGeocoder(language=config.get("language", "pl")), gps_reader=gps_reader
+        )
 
     if recognizer_type == "nominatim":
         geocoder = NominatimGeocoder(
@@ -18,6 +21,6 @@ def get_location_recognizer(config: dict) -> LocationRecognizer:
             user_agent=config.get("user_agent", DEFAULT_USER_AGENT),
             cache_radius_km=config.get("cache_radius_km", 2.0),
         )
-        return ReverseGeocoderRecognizer(geocoder=geocoder)
+        return ReverseGeocoderRecognizer(geocoder=geocoder, gps_reader=gps_reader)
 
     raise ValueError(f"Unknown location_recognition type: {recognizer_type!r}")

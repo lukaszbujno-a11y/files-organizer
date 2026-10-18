@@ -9,7 +9,8 @@ from pathlib import Path
 from typing import Callable
 
 from .config import Config
-from .exif_reader import IMAGE_SUFFIXES, exif_string, exif_taken_at, iter_media_files, read_metadata_batch
+from .exif_reader import IMAGE_SUFFIXES, exif_string, exif_taken_at, iter_media_files, read_gps, read_metadata_batch
+from .location_recognizers import LocationRecognizer
 from .metadata import COUNTRY_TAG_PREFIX, LOCATION_TAG_PREFIX, PERSON_TAG_PREFIX
 from .models import Photo, RecognizedLocation
 
@@ -333,6 +334,11 @@ class Catalog:
             for row in rows
         ]
 
+    def read_gps(self, path: Path) -> tuple[float, float] | None:
+        """GPS from the catalog when it has a fresh entry for `path`, otherwise from the file's EXIF."""
+        entry = self.get(path)
+        return entry.gps if entry is not None else read_gps(path)
+
     # --- updates from the pipeline -------------------------------------------------------
 
     def set_location(self, path: Path, location: RecognizedLocation, source: str) -> None:
@@ -397,6 +403,32 @@ class Catalog:
         ]
         people = [row[0] for row in self._db.execute("SELECT DISTINCT value FROM tags WHERE kind = 'person' ORDER BY value")]
         return {"models": models, "countries": countries, "people": people}
+
+
+class CatalogLocationRecognizer(LocationRecognizer):
+    """Answers from place names the catalog remembers from earlier runs, and remembers new ones.
+
+    `inner` does the actual lookup (best built with `gps_reader=catalog.read_gps`, so even that
+    doesn't run exiftool). `source` identifies the backend and language ("nominatim:pl"):
+    a name stored by a different one isn't reused, since it may be spelled differently.
+    """
+
+    def __init__(self, inner: LocationRecognizer, catalog: Catalog, source: str):
+        self.inner = inner
+        self.catalog = catalog
+        self.source = source
+
+    def recognize(self, path: Path) -> RecognizedLocation | None:
+        entry = self.catalog.get(path)
+        if entry is not None and entry.gps is not None and entry.city and entry.location_source == self.source:
+            self.last_source, self.last_source_detail = "catalog", ""
+            return RecognizedLocation(city=entry.city, country=entry.country, latitude=entry.gps[0], longitude=entry.gps[1])
+
+        location = self.inner.recognize(path)
+        self.last_source, self.last_source_detail = self.inner.last_source, self.inner.last_source_detail
+        if location is not None and entry is not None:
+            self.catalog.set_location(path, location, self.source)
+        return location
 
 
 def open_catalog(config: Config) -> Catalog | None:

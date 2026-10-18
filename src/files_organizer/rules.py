@@ -11,7 +11,7 @@ from .models import Event, Photo
 
 LogFn = Callable[[str], None]
 
-_SOURCE_LABELS = {"offline": "offline", "cache": "cache", "api": "API", "no_gps": "brak GPS"}
+_SOURCE_LABELS = {"offline": "offline", "cache": "cache", "api": "API", "catalog": "katalog", "no_gps": "brak GPS"}
 
 
 def classify_photos(

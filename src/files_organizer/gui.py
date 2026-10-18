@@ -8,6 +8,7 @@ from pathlib import Path
 import click
 
 from .calendar_sources import filter_events_by_tag, get_calendar_source
+from .catalog import open_catalog
 from .config import ALL_RULES, Config, load_config, with_rule_enabled
 from .models import Event
 from .pipeline import run_pipeline
@@ -351,8 +352,11 @@ class OrganizerApp:
         self.status_var.set("Zatrzymywanie… (bieżący plik zostanie dokończony)")
 
     def _run_worker(self, run_config: Config, dry_run: bool, stop_event: threading.Event) -> None:
+        catalog = None
         try:
-            run_pipeline(run_config, dry_run, log=self.log_queue.put, stop_event=stop_event)
+            # opened here, not in __init__: an sqlite3 connection only works in the thread that made it
+            catalog = open_catalog(run_config)
+            run_pipeline(run_config, dry_run, log=self.log_queue.put, stop_event=stop_event, catalog=catalog)
             if stop_event.is_set():
                 self.log_queue.put("Zatrzymano na życzenie użytkownika.")
             else:
@@ -360,6 +364,8 @@ class OrganizerApp:
         except Exception as exc:
             self.log_queue.put(f"ERROR:{exc}")
         finally:
+            if catalog is not None:
+                catalog.close()
             self.log_queue.put(_DONE)
 
 

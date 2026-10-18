@@ -229,3 +229,9 @@ o365_token.txt
 
 # reference photos of real people for face recognition - never commit these
 known_faces/
+
+# local metadata catalog (files_organizer.catalog) - default location is ~/.cache, but never commit one kept in the repo
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm

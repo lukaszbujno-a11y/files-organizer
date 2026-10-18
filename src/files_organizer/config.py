@@ -33,6 +33,8 @@ class Config:
     home_country: str | None = None
     # A day gets its own date-only folder only when MORE than this many photos reach the date rule.
     date_group_threshold: int = 5
+    # Local metadata database (`catalog.open_catalog`): {"enabled": bool, "path": str}; on by default.
+    catalog: dict | None = None
 
     def __post_init__(self):
         if self.mode not in {"copy", "move"}:
@@ -97,4 +99,5 @@ def load_config(path: str | Path) -> Config:
         rules=tuple(raw.get("rules") or ("calendar",)),
         home_country=raw.get("home_country"),
         date_group_threshold=raw.get("date_group_threshold", 5),
+        catalog=raw.get("catalog"),
     )

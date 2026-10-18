@@ -26,6 +26,19 @@ def _parse_exiftool_datetime(value: str) -> datetime | None:
         return None
 
 
+def exif_taken_at(data: dict) -> datetime | None:
+    """When the photo was taken according to exiftool's JSON for one file, None if it doesn't say."""
+    raw_datetime = data.get("DateTimeOriginal") or data.get("CreateDate")
+    return _parse_exiftool_datetime(str(raw_datetime)) if raw_datetime else None
+
+
+def exif_string(value) -> str | None:
+    """A text tag (e.g. Model) with surrounding whitespace dropped; None when missing or blank."""
+    if value is None:
+        return None
+    return str(value).strip() or None
+
+
 def read_photo_metadata(path: Path) -> Photo:
     taken_at: datetime | None = None
     camera_model: str | None = None
@@ -38,12 +51,8 @@ def read_photo_metadata(path: Path) -> Photo:
             check=True,
         )
         data = json.loads(result.stdout)[0]
-        raw_datetime = data.get("DateTimeOriginal") or data.get("CreateDate")
-        if raw_datetime:
-            taken_at = _parse_exiftool_datetime(raw_datetime)
-        raw_model = data.get("Model")
-        if raw_model:
-            camera_model = raw_model.strip()
+        taken_at = exif_taken_at(data)
+        camera_model = exif_string(data.get("Model"))
     except (subprocess.CalledProcessError, FileNotFoundError, json.JSONDecodeError, IndexError):
         pass
 
@@ -71,6 +80,32 @@ def read_gps(path: Path) -> tuple[float, float] | None:
     if latitude is None or longitude is None:
         return None
     return float(latitude), float(longitude)
+
+
+# Everything the catalog keeps about a file, read in one exiftool call per batch (see read_metadata_batch).
+BATCH_TAGS = ("DateTimeOriginal", "CreateDate", "Make", "Model", "GPSLatitude", "GPSLongitude", "Keywords")
+
+
+def read_metadata_batch(paths: list[Path]) -> dict[Path, dict]:
+    """exiftool's JSON (with `-n`, so GPS comes as signed decimal degrees) for each of `paths`,
+    read in a single exiftool process - starting the process costs far more than reading one
+    file's tags, so this is what makes scanning thousands of files bearable.
+
+    The paths go in through stdin (`-@ -`) rather than argv, so a batch is never limited by the
+    command-line length. A file exiftool can't read is simply missing from the result; if
+    exiftool itself isn't available, the result is empty.
+    """
+    if not paths:
+        return {}
+    args = ["exiftool", "-j", "-n", *(f"-{tag}" for tag in BATCH_TAGS), "-@", "-"]
+    try:
+        result = subprocess.run(
+            args, input="\n".join(str(path) for path in paths), capture_output=True, text=True
+        )
+        entries = json.loads(result.stdout) if result.stdout.strip() else []
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+    return {Path(entry["SourceFile"]): entry for entry in entries if "SourceFile" in entry and "Error" not in entry}
 
 
 def iter_media_files(input_dir: Path):

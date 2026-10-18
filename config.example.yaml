@@ -35,6 +35,14 @@ rules: ["calendar"]
 # Próg reguły date: katalog z samą datą powstaje od date_group_threshold + 1 zdjęć.
 date_group_threshold: 5
 
+# Lokalny katalog metadanych (SQLite): data, telefon, GPS, tagi każdego pliku.
+# Przycisk "Skanuj" w GUI (albo `files-organizer-catalog scan`) czyta exiftoolem tylko
+# nowe i zmienione pliki; "Uruchom" robi taki skan przyrostowy sam przed startem i bierze
+# metadane z bazy. Baza to tylko kopia danych z plików - można ją w każdej chwili usunąć.
+# catalog:
+#   enabled: true
+#   path: "~/.cache/files-organizer/catalog.sqlite"
+
 calendar:
   # ics | google | outlook
   type: "ics"

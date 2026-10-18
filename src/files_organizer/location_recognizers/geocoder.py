@@ -86,6 +86,7 @@ DEFAULT_NOMINATIM_CACHE = Path("~/.cache/files-organizer/nominatim.json")
 _PLACE_KEYS = ("city", "town", "village", "hamlet", "municipality", "county")
 
 _KM_PER_DEGREE = 111.32  # length of one degree of latitude
+_EARTH_RADIUS_KM = 6371.0
 
 FetchFn = Callable[[str, dict[str, str]], dict]
 
@@ -104,14 +105,15 @@ class NominatimGeocoder(Geocoder):
     This sends the photo's GPS coordinates (never the photo itself) to nominatim.openstreetmap.org.
     The public server's usage policy allows at most 1 request per second and requires an
     identifying User-Agent, so requests are throttled, and every result (including "nothing
-    here") is cached on disk under rounded coordinates - photos from one trip mostly
-    hit the cache, and re-running over the same photos sends nothing again.
+    here") is cached on disk - photos from one trip mostly hit the cache, and re-running over
+    the same photos sends nothing again.
 
-    The cache key is the cell of a grid of roughly `cache_cell_km` x `cache_cell_km` squares the
-    coordinates fall into (the longitude step widens towards the poles so cells stay square) -
-    enough for a city-level name while letting nearby photos share one request.
+    A lookup is answered from the cache when an already-resolved point lies within
+    `cache_radius_km` of it (the nearest such point wins) - enough for a city-level name while
+    letting nearby photos share one request, without the edge effects of a fixed grid where two
+    photos a few metres apart can still land in different cells.
 
-    When the server can't be reached and the coordinates aren't cached, `lookup` raises
+    When the server can't be reached and nothing cached is close enough, `lookup` raises
     `GeocoderUnavailableError` rather than returning None.
     """
 
@@ -121,44 +123,45 @@ class NominatimGeocoder(Geocoder):
         cache_path: str | Path | None = None,
         user_agent: str = DEFAULT_USER_AGENT,
         min_interval: float = 1.0,
-        cache_cell_km: float = 2.0,
+        cache_radius_km: float = 2.0,
         fetch: FetchFn | None = None,
     ):
         self.language = language
         self.cache_path = Path(cache_path or DEFAULT_NOMINATIM_CACHE).expanduser()
         self.user_agent = user_agent
         self.min_interval = min_interval
-        self.cache_cell_km = cache_cell_km
+        self.cache_radius_km = cache_radius_km
         self.fetch = fetch or _http_get_json
-        self._cache: dict[str, list[str] | None] | None = None
+        self._cache: list[dict] | None = None
         self._last_request = 0.0
         self._lock = threading.Lock()
 
     def lookup(self, latitude: float, longitude: float) -> tuple[str, str] | None:
-        row, col, lat, lon = self._cache_cell(latitude, longitude)
-        key = f"{self.language}:{self.cache_cell_km:g}km:{row},{col}"
         with self._lock:
-            cache = self._load_cache()
-            if key in cache:
-                cached = cache[key]
-                return tuple(cached) if cached is not None else None
+            cached = self._nearest_cached(latitude, longitude)
+            if cached is not None:
+                return (cached["city"], cached["country"]) if cached["city"] is not None else None
 
-            # query the rounded point, so the cached name is the one for the whole cache cell
-            found = self._request(lat, lon)
-            cache[key] = list(found) if found is not None else None
+            found = self._request(latitude, longitude)
+            city, country = found if found is not None else (None, None)
+            self._load_cache().append(
+                {"lat": latitude, "lon": longitude, "language": self.language, "city": city, "country": country}
+            )
             self._save_cache()
             return found
 
-    def _cache_cell(self, latitude: float, longitude: float) -> tuple[int, int, float, float]:
-        """Grid cell `(row, col)` containing the point, plus the cell centre's coordinates."""
-        lat_step = self.cache_cell_km / _KM_PER_DEGREE
-        row = math.floor(latitude / lat_step)
-        centre_lat = (row + 0.5) * lat_step
-        # one longitude step per row, from the row's centre latitude, so every point in a row
-        # agrees on the column width (clamped near the poles, where cos() goes to 0)
-        lon_step = lat_step / max(math.cos(math.radians(centre_lat)), 0.01)
-        col = math.floor(longitude / lon_step)
-        return row, col, round(centre_lat, 5), round((col + 0.5) * lon_step, 5)
+    def _nearest_cached(self, latitude: float, longitude: float) -> dict | None:
+        # cheap latitude pre-filter before the exact distance - a linear scan is fine for the
+        # few thousand distinct places a photo library realistically has
+        max_lat_delta = self.cache_radius_km / _KM_PER_DEGREE
+        best, best_km = None, self.cache_radius_km
+        for entry in self._load_cache():
+            if entry["language"] != self.language or abs(entry["lat"] - latitude) > max_lat_delta:
+                continue
+            km = _distance_km(latitude, longitude, entry["lat"], entry["lon"])
+            if km <= best_km:
+                best, best_km = entry, km
+        return best
 
     def _request(self, latitude: float, longitude: float) -> tuple[str, str] | None:
         wait = self.min_interval - (time.monotonic() - self._last_request)
@@ -183,16 +186,26 @@ class NominatimGeocoder(Geocoder):
             return None
         return city, country
 
-    def _load_cache(self) -> dict[str, list[str] | None]:
+    def _load_cache(self) -> list[dict]:
         if self._cache is None:
             try:
-                self._cache = json.loads(self.cache_path.read_text())
+                data = json.loads(self.cache_path.read_text())
             except (FileNotFoundError, json.JSONDecodeError):
-                self._cache = {}
+                data = None
+            # anything else (e.g. the earlier grid-keyed dict format) is just discarded
+            self._cache = data.get("entries", []) if isinstance(data, dict) and data.get("version") == 2 else []
         return self._cache
 
     def _save_cache(self) -> None:
         self.cache_path.parent.mkdir(parents=True, exist_ok=True)
         tmp_path = self.cache_path.with_suffix(".tmp")
-        tmp_path.write_text(json.dumps(self._cache, ensure_ascii=False, indent=0))
+        tmp_path.write_text(json.dumps({"version": 2, "entries": self._cache}, ensure_ascii=False, indent=0))
         tmp_path.replace(self.cache_path)
+
+
+def _distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Great-circle (haversine) distance between two points."""
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    d_phi, d_lambda = phi2 - phi1, math.radians(lon2 - lon1)
+    a = math.sin(d_phi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(d_lambda / 2) ** 2
+    return 2 * _EARTH_RADIUS_KM * math.asin(math.sqrt(a))

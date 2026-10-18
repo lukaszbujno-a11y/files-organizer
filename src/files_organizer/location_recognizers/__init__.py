@@ -16,7 +16,7 @@ def get_location_recognizer(config: dict) -> LocationRecognizer:
             language=config.get("language", "pl"),
             cache_path=config.get("cache_path"),
             user_agent=config.get("user_agent", DEFAULT_USER_AGENT),
-            cache_cell_km=config.get("cache_cell_km", 2.0),
+            cache_radius_km=config.get("cache_radius_km", 2.0),
         )
         return ReverseGeocoderRecognizer(geocoder=geocoder)
 

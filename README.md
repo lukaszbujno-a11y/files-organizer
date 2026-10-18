@@ -70,8 +70,8 @@ Nazwy są domyślnie po polsku (`location_recognition.language: "pl"`, więc
 - `nominatim` — online (OpenStreetMap): miasta i kraje po polsku, z polskimi znakami
   (`2026-07-15 Austria-Wiedeń`, `Kraków`, `Lwów`). Do serwera wysyłane są **tylko
   współrzędne GPS** zdjęcia (nie samo zdjęcie). Serwer pozwala na 1 zapytanie/s, więc
-  wyniki są cache'owane w `~/.cache/files-organizer/nominatim.json` (w komórkach ok. 2×2 km,
-  `cache_cell_km: 2`). Zdjęcia z jednego miejsca i ponowne uruchomienia
+  wyniki są cache'owane w `~/.cache/files-organizer/nominatim.json` — zdjęcie w promieniu
+  2 km (`cache_radius_km: 2`) od miejsca już sprawdzonego dostaje jego nazwę bez zapytania. Zdjęcia z jednego miejsca i ponowne uruchomienia
   korzystają z cache. **Bez internetu** nazwy są brane z cache, a gdy którejś tam nie ma,
   cały proces jest przerywany z błędem — w `files-organizer` jeszcze przed kopiowaniem/
   przenoszeniem (żaden plik nie zostaje ruszony), w `files-organizer-locations` przed

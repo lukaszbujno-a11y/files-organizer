@@ -1,5 +1,3 @@
-import math
-
 import pytest
 
 from files_organizer.location_recognizers import ReverseGeocoderRecognizer, get_location_recognizer
@@ -195,32 +193,72 @@ def test_nominatim_serves_cached_name_when_offline(tmp_path):
     assert reloaded.lookup(48.2101, 16.3701) == ("Wiedeń", "Austria")
 
 
-def test_nominatim_cache_cell_size_is_configurable(tmp_path):
+def make_counting_nominatim(tmp_path, **kwargs):
     from files_organizer.location_recognizers.geocoder import NominatimGeocoder
 
     calls = []
 
     def fetch(url, headers):
         calls.append(url)
-        return {"address": {"city": "Kraków", "country": "Polska"}}
+        return {"address": {"city": f"Miejsce{len(calls)}", "country": "Polska"}}
 
-    geocoder = NominatimGeocoder(cache_path=tmp_path / "c.json", min_interval=0, cache_cell_km=10, fetch=fetch)
-    row, col, lat, lon = geocoder._cache_cell(50.06, 19.94)
-    geocoder.lookup(lat - 0.03, lon - 0.05)
-    geocoder.lookup(lat + 0.03, lon + 0.05)  # ~7 km apart, both within the same 10 km cell
+    return NominatimGeocoder(cache_path=tmp_path / "c.json", min_interval=0, fetch=fetch, **kwargs), calls
+
+
+def test_nominatim_reuses_cached_name_within_radius(tmp_path):
+    geocoder, calls = make_counting_nominatim(tmp_path)
+
+    geocoder.lookup(54.352, 18.646)
+    # ~800 m away - this used to straddle a grid cell border and cost a second request
+    assert geocoder.lookup(54.358, 18.655) == ("Miejsce1", "Polska")
+    assert len(calls) == 1
+
+
+def test_nominatim_queries_again_outside_radius(tmp_path):
+    geocoder, calls = make_counting_nominatim(tmp_path)
+
+    geocoder.lookup(54.35, 18.65)
+    assert geocoder.lookup(54.35, 18.70) == ("Miejsce2", "Polska")  # ~3.3 km east
+    assert len(calls) == 2
+
+
+def test_nominatim_picks_nearest_cached_point(tmp_path):
+    geocoder, calls = make_counting_nominatim(tmp_path, cache_radius_km=5)
+    geocoder.lookup(50.00, 19.90)  # Miejsce1
+    geocoder.lookup(50.00, 20.00)  # ~7 km east -> Miejsce2
+
+    # within 5 km of both, but closer to the second
+    assert geocoder.lookup(50.00, 19.96) == ("Miejsce2", "Polska")
+    assert len(calls) == 2
+
+
+def test_nominatim_cache_radius_is_configurable(tmp_path):
+    geocoder, calls = make_counting_nominatim(tmp_path, cache_radius_km=5)
+
+    geocoder.lookup(54.35, 18.65)
+    geocoder.lookup(54.35, 18.70)  # ~3.3 km
 
     assert len(calls) == 1
 
 
-def test_nominatim_default_cells_are_about_two_km(tmp_path):
+def test_nominatim_cache_is_per_language(tmp_path):
     from files_organizer.location_recognizers.geocoder import NominatimGeocoder
 
-    geocoder = NominatimGeocoder(cache_path=tmp_path / "c.json")
-    row, col, lat, lon = geocoder._cache_cell(54.35, 18.65)
+    geocoder, calls = make_counting_nominatim(tmp_path)
+    geocoder.lookup(54.35, 18.65)
 
-    # cell centre +/- 0.9 km stays in the cell; 1.1 km off the centre leaves it (both axes)
-    km_lat, km_lon = 1 / 111.32, 1 / (111.32 * math.cos(math.radians(lat)))
-    assert geocoder._cache_cell(lat + 0.9 * km_lat, lon + 0.9 * km_lon)[:2] == (row, col)
-    assert geocoder._cache_cell(lat - 0.9 * km_lat, lon - 0.9 * km_lon)[:2] == (row, col)
-    assert geocoder._cache_cell(lat + 1.1 * km_lat, lon)[:2] != (row, col)
-    assert geocoder._cache_cell(lat, lon + 1.1 * km_lon)[:2] != (row, col)
+    def fetch_english(url, headers):
+        calls.append(url)
+        return {"address": {"city": "Gdansk", "country": "Poland"}}
+
+    english = NominatimGeocoder(language="en", cache_path=tmp_path / "c.json", min_interval=0, fetch=fetch_english)
+    assert english.lookup(54.35, 18.65) == ("Gdansk", "Poland")
+    assert len(calls) == 2
+
+
+def test_nominatim_ignores_old_grid_cache_format(tmp_path):
+    (tmp_path / "c.json").write_text('{"pl:2km:3025,604": ["Gdańsk", "Polska"]}')
+    geocoder, calls = make_counting_nominatim(tmp_path)
+
+    assert geocoder.lookup(54.352, 18.646) == ("Miejsce1", "Polska")
+    assert len(calls) == 1

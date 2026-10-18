@@ -200,3 +200,24 @@ def test_open_catalog_respects_config(tmp_path):
     with open_catalog(config) as opened:
         assert opened.path == tmp_path / "c.sqlite"
     assert open_catalog(Config(input_dir=tmp_path, output_dir=None, catalog={"enabled": False})) is None
+
+
+def test_cli_scan_and_search(tmp_path):
+    from click.testing import CliRunner
+
+    from files_organizer.catalog_cli import main
+
+    make_jpeg(tmp_path / "in" / "a.jpg", "-DateTimeOriginal=2026:07:15 10:00:00", "-Model=Pixel 8", "-Keywords=Person:Ola")
+    make_jpeg(tmp_path / "in" / "b.jpg")
+    config = tmp_path / "config.yaml"
+    config.write_text(f"input_dir: {tmp_path / 'in'}\ncatalog:\n  path: {tmp_path / 'c.sqlite'}\n")
+    runner = CliRunner()
+
+    scanned = runner.invoke(main, ["scan", "--config", str(config)])
+    found = runner.invoke(main, ["search", "--config", str(config), "--model", "Pixel 8"])
+    undated = runner.invoke(main, ["search", "--config", str(config), "--no-exif-date"])
+
+    assert "nowe: 2" in scanned.output
+    assert found.output.splitlines()[0].startswith("2026-07-15 10:00  Pixel 8  -  Ola  ")
+    assert found.output.splitlines()[-1] == "Znaleziono: 1"
+    assert "*" in undated.output.splitlines()[0] and "b.jpg" in undated.output

@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 import queue
+import subprocess
+import sys
 import threading
 from dataclasses import replace
+from datetime import date
 from pathlib import Path
 
 import click
 
 from .calendar_sources import filter_events_by_tag, get_calendar_source
-from .catalog import open_catalog
+from .catalog import CatalogQuery, open_catalog
 from .config import ALL_RULES, Config, load_config, with_rule_enabled
 from .models import Event
 from .pipeline import run_pipeline
@@ -23,6 +26,8 @@ except ImportError as exc:  # pragma: no cover - depends on the Python install
     _TK_IMPORT_ERROR = exc
 
 _DONE = object()
+
+_CATALOG_RESULT_LIMIT = 2000
 
 _RULE_LABELS = {"calendar": "Kalendarz", "location": "Lokalizacja", "date": "Data"}
 
@@ -129,6 +134,10 @@ class OrganizerApp:
         notebook.add(calendar_frame, text="Kalendarz")
         self._build_calendar_tab(calendar_frame)
 
+        catalog_frame = ttk.Frame(notebook)
+        notebook.add(catalog_frame, text="Katalog")
+        self._build_catalog_tab(catalog_frame)
+
     def _build_calendar_tab(self, parent: ttk.Frame) -> None:
         toolbar = ttk.Frame(parent)
         toolbar.pack(fill="x", padx=4, pady=4)
@@ -150,6 +159,111 @@ class OrganizerApp:
         self.calendar_tree.configure(yscrollcommand=scrollbar.set)
         self.calendar_tree.pack(side="left", fill="both", expand=True, padx=(4, 0), pady=(0, 4))
         scrollbar.pack(side="right", fill="y", pady=(0, 4))
+
+    def _build_catalog_tab(self, parent: ttk.Frame) -> None:
+        filters = ttk.Frame(parent)
+        filters.pack(fill="x", padx=4, pady=4)
+        self.catalog_vars = {name: tk.StringVar() for name in ("from", "to", "model", "country", "person")}
+        self.catalog_without_exif_date = tk.BooleanVar(value=False)
+        self.catalog_without_gps = tk.BooleanVar(value=False)
+
+        ttk.Label(filters, text="Od (RRRR-MM-DD):").grid(row=0, column=0, sticky="w")
+        ttk.Entry(filters, textvariable=self.catalog_vars["from"], width=11).grid(row=0, column=1, sticky="w", padx=(2, 8))
+        ttk.Label(filters, text="Do:").grid(row=0, column=2, sticky="w")
+        ttk.Entry(filters, textvariable=self.catalog_vars["to"], width=11).grid(row=0, column=3, sticky="w", padx=(2, 8))
+        self.catalog_comboboxes = {}
+        for column, (name, label) in enumerate((("model", "Telefon:"), ("country", "Kraj:"), ("person", "Osoba:"))):
+            ttk.Label(filters, text=label).grid(row=1, column=column * 2, sticky="w", pady=(4, 0))
+            combobox = ttk.Combobox(filters, textvariable=self.catalog_vars[name], width=16)
+            combobox.grid(row=1, column=column * 2 + 1, sticky="w", padx=(2, 8), pady=(4, 0))
+            self.catalog_comboboxes[name] = combobox
+        ttk.Checkbutton(filters, text="bez daty EXIF", variable=self.catalog_without_exif_date).grid(row=0, column=4, sticky="w")
+        ttk.Checkbutton(filters, text="bez GPS", variable=self.catalog_without_gps).grid(row=0, column=5, sticky="w")
+        ttk.Button(filters, text="Szukaj", command=self._search_catalog).grid(row=1, column=6, sticky="e", pady=(4, 0))
+
+        self.catalog_status_var = tk.StringVar(value="Kliknij „Skanuj”, aby zbudować katalog, a potem „Szukaj”.")
+        ttk.Label(parent, textvariable=self.catalog_status_var).pack(fill="x", padx=4)
+
+        columns = ("taken_at", "model", "place", "people", "path")
+        headings = {"taken_at": "Data", "model": "Telefon", "place": "Miejsce", "people": "Osoby", "path": "Ścieżka"}
+        widths = {"taken_at": 125, "model": 110, "place": 130, "people": 100, "path": 300}
+        self.catalog_tree = ttk.Treeview(parent, columns=columns, show="headings", height=10)
+        for col in columns:
+            self.catalog_tree.heading(col, text=headings[col])
+            self.catalog_tree.column(col, width=widths[col], anchor="w")
+        self.catalog_tree.bind("<Double-1>", self._reveal_catalog_file)
+
+        scrollbar = ttk.Scrollbar(parent, orient="vertical", command=self.catalog_tree.yview)
+        self.catalog_tree.configure(yscrollcommand=scrollbar.set)
+        self.catalog_tree.pack(side="left", fill="both", expand=True, padx=(4, 0), pady=(0, 4))
+        scrollbar.pack(side="right", fill="y", pady=(0, 4))
+        self._refresh_catalog_filters()
+
+    def _catalog_query(self) -> CatalogQuery | None:
+        dates = {}
+        for name in ("from", "to"):
+            raw = self.catalog_vars[name].get().strip()
+            try:
+                dates[name] = date.fromisoformat(raw) if raw else None
+            except ValueError:
+                messagebox.showerror("Błąd", f"Niepoprawna data: {raw!r} (oczekiwano RRRR-MM-DD).")
+                return None
+        text = {name: self.catalog_vars[name].get().strip() or None for name in ("model", "country", "person")}
+        return CatalogQuery(
+            taken_from=dates["from"],
+            taken_to=dates["to"],
+            without_exif_date=self.catalog_without_exif_date.get(),
+            without_gps=self.catalog_without_gps.get(),
+            limit=_CATALOG_RESULT_LIMIT,
+            **text,
+        )
+
+    def _search_catalog(self) -> None:
+        query = self._catalog_query()
+        if query is None:
+            return
+        # a short read on the main thread: WAL lets it run even while a scan is writing
+        try:
+            catalog = open_catalog(self.config)
+            if catalog is None:
+                self.catalog_status_var.set("Katalog jest wyłączony w konfiguracji (catalog.enabled: false).")
+                return
+            with catalog:
+                entries, total, facets = catalog.search(query), catalog.count(query), catalog.facets()
+        except Exception as exc:
+            messagebox.showerror("Błąd katalogu", str(exc))
+            return
+
+        self._set_catalog_facets(facets)
+        self.catalog_tree.delete(*self.catalog_tree.get_children())
+        for entry in entries:
+            taken_at = f"{entry.taken_at:%Y-%m-%d %H:%M}" if entry.taken_at else ""
+            if entry.date_source == "mtime":
+                taken_at += " *"
+            people = ", ".join(entry.tag_values("person"))
+            self.catalog_tree.insert("", "end", values=(taken_at, entry.model or "", entry.place, people, str(entry.path)))
+        shown = f" (pokazano pierwsze {len(entries)})" if total > len(entries) else ""
+        self.catalog_status_var.set(f"Znaleziono: {total}{shown}. * = data pliku, nie z EXIF. Dwuklik pokazuje plik w Finderze.")
+
+    def _refresh_catalog_filters(self) -> None:
+        try:
+            catalog = open_catalog(self.config)
+            if catalog is None:
+                return
+            with catalog:
+                self._set_catalog_facets(catalog.facets())
+        except Exception:
+            pass  # just suggestions for the filters - searching reports real errors
+
+    def _set_catalog_facets(self, facets: dict[str, list[str]]) -> None:
+        for name, key in (("model", "models"), ("country", "countries"), ("person", "people")):
+            self.catalog_comboboxes[name].configure(values=[""] + facets[key])
+
+    def _reveal_catalog_file(self, event) -> None:
+        item = self.catalog_tree.identify_row(event.y)
+        if not item or sys.platform != "darwin":
+            return
+        subprocess.run(["open", "-R", self.catalog_tree.item(item, "values")[4]], check=False)
 
     def _on_rules_changed(self) -> None:
         for rule, var in self.rule_vars.items():
@@ -202,6 +316,7 @@ class OrganizerApp:
         self._update_rules_order_label()
         self._append_log(f"Wczytano konfigurację: {path}")
         self._load_calendar_preview()
+        self._refresh_catalog_filters()
 
     def _load_calendar_preview(self) -> None:
         calendar_config = self.config.calendar
@@ -274,6 +389,7 @@ class OrganizerApp:
                 if message is _DONE:
                     self.run_button.configure(state="normal")
                     self.scan_button.configure(state="normal")
+                    self._refresh_catalog_filters()
                     self.stop_button.configure(state="disabled")
                     self.status_var.set("Gotowy.")
                 elif isinstance(message, str) and message.startswith("ERROR:"):

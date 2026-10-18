@@ -93,6 +93,13 @@ class CatalogEntry:
     def tag_values(self, kind: str) -> list[str]:
         return [value for tag_kind, value in self.tags if tag_kind == kind]
 
+    @property
+    def place(self) -> str:
+        """"Split, Chorwacja" - from the `location` rule's result, else from Location:/Country: tags."""
+        if self.city:
+            return f"{self.city}, {self.country}"
+        return ", ".join(self.tag_values("location") + self.tag_values("country"))
+
 
 @dataclass(frozen=True)
 class ScanResult:

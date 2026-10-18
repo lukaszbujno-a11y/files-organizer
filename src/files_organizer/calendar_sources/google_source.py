@@ -39,6 +39,7 @@ class GoogleCalendarSource(CalendarSource):
         return [_to_event(item) for item in response.get("items", [])]
 
     def _build_service(self):
+        from google.auth.exceptions import RefreshError
         from google.auth.transport.requests import Request
         from google.oauth2.credentials import Credentials
         from google_auth_oauthlib.flow import InstalledAppFlow
@@ -52,8 +53,13 @@ class GoogleCalendarSource(CalendarSource):
 
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-            else:
+                try:
+                    creds.refresh(Request())
+                except RefreshError:
+                    # Refresh token revoked or expired (apps in "Testing" mode get
+                    # 7-day refresh tokens) - fall back to a fresh browser consent.
+                    creds = None
+            if not creds or not creds.valid:
                 flow = InstalledAppFlow.from_client_secrets_file(str(self.credentials_file), SCOPES)
                 creds = flow.run_local_server(port=0)
             self.token_file.parent.mkdir(parents=True, exist_ok=True)

@@ -163,6 +163,11 @@ zalogowaniu w przeglądarce.
    odczytu wydarzeń). Po zatwierdzeniu `token.json` zapisze się pod `token_file` i kolejne
    uruchomienia nie będą już wymagały logowania. Aby wymusić ponowne logowanie, usuń ten plik.
 
+Jeśli aplikacja OAuth ma w Google Cloud status **Testing**, refresh token wygasa po 7 dniach —
+wtedy przy następnym uruchomieniu okno logowania otworzy się ponownie. Żeby tego uniknąć,
+zmień status na **In production** (Google Auth Platform → Audience → „Publish app”);
+do prywatnego użytku weryfikacja przez Google nie jest wymagana.
+
 ## Rozpoznawanie twarzy (proces w tle)
 
 Osobny, długo działający proces (niezależny od `files-organizer`/`run_pipeline`) obserwuje

@@ -2,7 +2,14 @@ from __future__ import annotations
 
 import functools
 import gettext
+import json
+import threading
+import time
+import urllib.parse
+import urllib.request
 from abc import ABC, abstractmethod
+from pathlib import Path
+from typing import Callable
 
 
 class Geocoder(ABC):
@@ -56,3 +63,96 @@ def _translation(language: str) -> gettext.NullTranslations:
 
     # fallback: an unknown language code keeps the English names instead of failing every lookup
     return gettext.translation("iso3166-1", pycountry.LOCALES_DIR, languages=[language], fallback=True)
+
+
+NOMINATIM_URL = "https://nominatim.openstreetmap.org/reverse"
+DEFAULT_USER_AGENT = "files-organizer/0.1 (+https://github.com/lukaszbujno-a11y/files-organizer)"
+DEFAULT_NOMINATIM_CACHE = Path("~/.cache/files-organizer/nominatim.json")
+
+# Most specific settlement level first; `municipality` comes last since for some countries
+# (e.g. Ukraine) it's an administrative unit name OSM only has in the local language.
+_PLACE_KEYS = ("city", "town", "village", "hamlet", "municipality", "county")
+
+FetchFn = Callable[[str, dict[str, str]], dict]
+
+
+def _http_get_json(url: str, headers: dict[str, str]) -> dict:
+    request = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(request, timeout=10) as response:
+        return json.load(response)
+
+
+class NominatimGeocoder(Geocoder):
+    """Looks up city/country online via OpenStreetMap's Nominatim reverse-geocoding API, with
+    names in `language` - unlike `ReverseGeocoderGeocoder` this gives localized city names with
+    diacritics ("Kraków", "Wiedeń", "Lwów"), not just localized countries.
+
+    This sends the photo's GPS coordinates (never the photo itself) to nominatim.openstreetmap.org.
+    The public server's usage policy allows at most 1 request per second and requires an
+    identifying User-Agent, so requests are throttled, and every result (including "nothing
+    here") is cached on disk under coordinates rounded to ~100 m - photos from one trip mostly
+    hit the cache, and re-running over the same photos sends nothing again.
+    """
+
+    def __init__(
+        self,
+        language: str = "pl",
+        cache_path: str | Path | None = None,
+        user_agent: str = DEFAULT_USER_AGENT,
+        min_interval: float = 1.0,
+        fetch: FetchFn | None = None,
+    ):
+        self.language = language
+        self.cache_path = Path(cache_path or DEFAULT_NOMINATIM_CACHE).expanduser()
+        self.user_agent = user_agent
+        self.min_interval = min_interval
+        self.fetch = fetch or _http_get_json
+        self._cache: dict[str, list[str] | None] | None = None
+        self._last_request = 0.0
+        self._lock = threading.Lock()
+
+    def lookup(self, latitude: float, longitude: float) -> tuple[str, str] | None:
+        key = f"{self.language}:{latitude:.3f},{longitude:.3f}"
+        with self._lock:
+            cache = self._load_cache()
+            if key in cache:
+                cached = cache[key]
+                return tuple(cached) if cached is not None else None
+
+            found = self._request(latitude, longitude)
+            cache[key] = list(found) if found is not None else None
+            self._save_cache()
+            return found
+
+    def _request(self, latitude: float, longitude: float) -> tuple[str, str] | None:
+        wait = self.min_interval - (time.monotonic() - self._last_request)
+        if wait > 0:
+            time.sleep(wait)
+        query = urllib.parse.urlencode(
+            {"lat": latitude, "lon": longitude, "format": "jsonv2", "zoom": 12, "accept-language": self.language}
+        )
+        try:
+            data = self.fetch(f"{NOMINATIM_URL}?{query}", {"User-Agent": self.user_agent})
+        finally:
+            self._last_request = time.monotonic()
+
+        address = data.get("address") or {}
+        city = next((address[key] for key in _PLACE_KEYS if address.get(key)), None)
+        country = address.get("country")
+        if city is None or country is None:
+            return None
+        return city, country
+
+    def _load_cache(self) -> dict[str, list[str] | None]:
+        if self._cache is None:
+            try:
+                self._cache = json.loads(self.cache_path.read_text())
+            except (FileNotFoundError, json.JSONDecodeError):
+                self._cache = {}
+        return self._cache
+
+    def _save_cache(self) -> None:
+        self.cache_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = self.cache_path.with_suffix(".tmp")
+        tmp_path.write_text(json.dumps(self._cache, ensure_ascii=False, indent=0))
+        tmp_path.replace(self.cache_path)

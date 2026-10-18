@@ -1,9 +1,9 @@
 # TODO
 
 1. [Zaimplementowane jako reguła `location` w `rules.py`, patrz README „Reguły
-   przypisywania”. Nazwy krajów po polsku (pycountry,
-   `location_recognition.language`), np. `2026-07-15 Chorwacja-Split`; nazwy
-   miast angielskie z GeoNames.] Weryfikacja zdjęć na podstawie metadanych lokalizacji (EXIF GPS). Jeśli
+   przypisywania”. Nazwy po polsku, np.
+   `2026-07-15 Chorwacja-Split`; z backendem `nominatim` (online) także miasta
+   z polskimi znakami, z `reverse_geocoder` (offline) miasta angielskie.] Weryfikacja zdjęć na podstawie metadanych lokalizacji (EXIF GPS). Jeśli
    zdjęcie zostało zrobione w lokalizacji poza krajem wskazanym w konfiguracji
    (np. `home_country: "Polska"`), utwórz katalog w uzgodnionej strukturze
    nazwany wg wzorca `data Kraj-Miasto`, np.:

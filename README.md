@@ -64,9 +64,17 @@ Zdjęcia przypisane przez wcześniejszą regułę nie liczą się do progu regu�
 Kolejność można zmienić (np. `rules: ["calendar", "date", "location"]`), a w GUI
 (sekcja „Reguły”) i w CLI (`--rules calendar,location,date`, `--date-group-threshold 10`)
 można reguły włączać/wyłączać i zmieniać próg na jedno uruchomienie.
-Reguła `location` wymaga `pip install -e ".[location_recognition]"`. Nazwy krajów są
-domyślnie po polsku (`location_recognition.language: "pl"`, więc `home_country: "Polska"`);
-nazwy miast pochodzą z bazy GeoNames i są angielskie, bez polskich znaków (`Krakow`, `Vienna`).
+Nazwy są domyślnie po polsku (`location_recognition.language: "pl"`, więc
+`home_country: "Polska"`). Backend lokalizacji wybiera `location_recognition.type`:
+
+- `nominatim` — online (OpenStreetMap): miasta i kraje po polsku, z polskimi znakami
+  (`2026-07-15 Austria-Wiedeń`, `Kraków`, `Lwów`). Do serwera wysyłane są **tylko
+  współrzędne GPS** zdjęcia (nie samo zdjęcie). Serwer pozwala na 1 zapytanie/s, więc
+  wyniki są cache'owane w `~/.cache/files-organizer/nominatim.json` (z dokładnością ~100 m).
+  Zdjęcia z jednego miejsca i ponowne uruchomienia korzystają z cache.
+- `reverse_geocoder` (domyślny) — w pełni offline, wymaga
+  `pip install -e ".[location_recognition]"`. Kraje są po polsku, ale miasta pochodzą z bazy
+  GeoNames i są angielskie, bez polskich znaków (`Krakow`, `Vienna`).
 
 # Technologia
 

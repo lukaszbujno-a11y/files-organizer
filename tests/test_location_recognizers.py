@@ -82,3 +82,82 @@ def test_get_location_recognizer_passes_language_to_geocoder():
     recognizer = get_location_recognizer({"type": "reverse_geocoder", "language": "en"})
 
     assert recognizer.geocoder.language == "en"
+
+
+def make_nominatim(tmp_path, responses: list[dict]):
+    from files_organizer.location_recognizers.geocoder import NominatimGeocoder
+
+    calls = []
+
+    def fetch(url, headers):
+        calls.append((url, headers))
+        return responses[len(calls) - 1]
+
+    geocoder = NominatimGeocoder(cache_path=tmp_path / "cache.json", min_interval=0, fetch=fetch)
+    return geocoder, calls
+
+
+def test_nominatim_returns_localized_city_and_country(tmp_path):
+    geocoder, calls = make_nominatim(
+        tmp_path, [{"address": {"city": "Wiedeń", "country": "Austria", "country_code": "at"}}]
+    )
+
+    assert geocoder.lookup(48.21, 16.37) == ("Wiedeń", "Austria")
+    url, headers = calls[0]
+    assert "accept-language=pl" in url
+    assert headers["User-Agent"].startswith("files-organizer")
+
+
+def test_nominatim_prefers_settlement_over_municipality(tmp_path):
+    geocoder, _ = make_nominatim(
+        tmp_path, [{"address": {"municipality": "Львівська міська громада", "city": "Lwów", "country": "Ukraina"}}]
+    )
+
+    assert geocoder.lookup(49.84, 24.03) == ("Lwów", "Ukraina")
+
+
+def test_nominatim_falls_back_to_village(tmp_path):
+    geocoder, _ = make_nominatim(
+        tmp_path, [{"address": {"village": "Brzegi", "municipality": "gmina Bukowina Tatrzańska", "country": "Polska"}}]
+    )
+
+    assert geocoder.lookup(49.2, 20.07) == ("Brzegi", "Polska")
+
+
+def test_nominatim_returns_none_when_nothing_found(tmp_path):
+    geocoder, _ = make_nominatim(tmp_path, [{"error": "Unable to geocode"}])
+
+    assert geocoder.lookup(40.0, -30.0) is None
+
+
+def test_nominatim_caches_results_on_disk(tmp_path):
+    from files_organizer.location_recognizers.geocoder import NominatimGeocoder
+
+    geocoder, calls = make_nominatim(tmp_path, [{"address": {"city": "Kraków", "country": "Polska"}}])
+    geocoder.lookup(50.0612, 19.9371)
+    # within ~100 m - same cache key, no second request
+    assert geocoder.lookup(50.0614, 19.9369) == ("Kraków", "Polska")
+    assert len(calls) == 1
+
+    def fail(url, headers):
+        raise AssertionError("should be served from the on-disk cache")
+
+    reloaded = NominatimGeocoder(cache_path=tmp_path / "cache.json", min_interval=0, fetch=fail)
+    assert reloaded.lookup(50.0612, 19.9371) == ("Kraków", "Polska")
+
+
+def test_nominatim_caches_negative_results(tmp_path):
+    geocoder, calls = make_nominatim(tmp_path, [{"error": "Unable to geocode"}])
+
+    geocoder.lookup(40.0, -30.0)
+    assert geocoder.lookup(40.0, -30.0) is None
+    assert len(calls) == 1
+
+
+def test_get_location_recognizer_builds_nominatim(tmp_path):
+    from files_organizer.location_recognizers.geocoder import NominatimGeocoder
+
+    recognizer = get_location_recognizer({"type": "nominatim", "cache_path": str(tmp_path / "c.json")})
+
+    assert isinstance(recognizer.geocoder, NominatimGeocoder)
+    assert recognizer.geocoder.cache_path == tmp_path / "c.json"

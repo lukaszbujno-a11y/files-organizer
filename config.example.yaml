@@ -70,12 +70,21 @@ phone_mapping:
 #   threshold: 0.4
 
 # Rozpoznawanie lokalizacji w tle (`files-organizer-locations --config config.yaml`).
-# Wymaga `pip install -e ".[location_recognition]"`. Działa wyłącznie na podstawie
-# współrzędnych GPS zapisanych w EXIF zdjęcia (offline, baza miast lokalna - żadne
-# dane nie są wysyłane poza ten komputer). Zdjęcia bez GPS są pomijane.
+# Działa wyłącznie na podstawie współrzędnych GPS zapisanych w EXIF zdjęcia.
+# Zdjęcia bez GPS są pomijane. Dwa backendy:
+#
+#   reverse_geocoder - offline (lokalna baza miast GeoNames, nic nie jest wysyłane),
+#                      wymaga `pip install -e ".[location_recognition]"`. Kraje po polsku,
+#                      ale miasta angielskie, bez polskich znaków ("Krakow", "Vienna").
+#   nominatim        - online (OpenStreetMap). Miasta i kraje po polsku, z polskimi znakami
+#                      ("Kraków", "Wiedeń", "Lwów"). Bez dodatkowych zależności.
+#                      UWAGA: współrzędne GPS (nie same zdjęcia) są wysyłane do
+#                      nominatim.openstreetmap.org. Limit serwera to 1 zapytanie/s, więc
+#                      wyniki są cache'owane na dysku (z dokładnością ~100 m) - ponowne
+#                      uruchomienie na tych samych zdjęciach nic już nie wysyła.
 # location_recognition:
-#   type: "reverse_geocoder"
-#   # Język nazw krajów w tagach Country: i katalogach reguły location (domyślnie "pl").
-#   # Nazwy miast zawsze pochodzą z bazy GeoNames - angielskie, bez polskich znaków
-#   # (np. "Krakow", "Vienna").
+#   type: "nominatim"            # albo "reverse_geocoder"
+#   # Język nazw w tagach Location:/Country: i katalogach reguły location (domyślnie "pl").
 #   language: "pl"
+#   # Tylko nominatim: plik cache (domyślnie ~/.cache/files-organizer/nominatim.json)
+#   # cache_path: "~/.cache/files-organizer/nominatim.json"

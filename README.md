@@ -1,3 +1,5 @@
+# 
+
 # files-organizer
 Application to organise files
 
@@ -131,6 +133,36 @@ brew install python-tk@3.12
 Bez `config.yaml` (lub bez sekcji `calendar` w configu) zdjęcia nie są
 dopasowywane do wydarzeń kalendarza — trafiają do katalogu `Nieprzypisane`.
 
+## Konfiguracja Google Calendar
+
+Tokena nie pozyskuje się ręcznie — potrzebny jest tylko plik `credentials.json`
+(klient OAuth typu „Desktop app”), a `token.json` aplikacja tworzy sama po pierwszym
+zalogowaniu w przeglądarce.
+
+1. Utwórz projekt w Google Cloud, włącz Google Calendar API, skonfiguruj ekran zgody OAuth
+   i utwórz klienta OAuth typu **Desktop app** — krok po kroku opisuje to oficjalny
+   quickstart: https://developers.google.com/workspace/calendar/api/quickstart/python
+   (sekcja „Set up your environment”).
+2. Pobierz JSON klienta i zapisz go jako `~/.config/files-organizer/credentials.json`
+   (poza repozytorium — to sekret).
+3. Zainstaluj zależności i ustaw sekcję `calendar` w `config.yaml`:
+
+   ```
+   pip install -e ".[google]"
+   ```
+
+   ```yaml
+   calendar:
+     type: "google"
+     credentials_file: "~/.config/files-organizer/credentials.json"
+     token_file: "~/.config/files-organizer/token.json"
+     # calendar_id: "primary"   # domyślnie główny kalendarz
+   ```
+
+4. Przy pierwszym uruchomieniu otworzy się przeglądarka z prośbą o zgodę (dostęp tylko do
+   odczytu wydarzeń). Po zatwierdzeniu `token.json` zapisze się pod `token_file` i kolejne
+   uruchomienia nie będą już wymagały logowania. Aby wymusić ponowne logowanie, usuń ten plik.
+
 ## Rozpoznawanie twarzy (proces w tle)
 
 Osobny, długo działający proces (niezależny od `files-organizer`/`run_pipeline`) obserwuje
@@ -173,7 +205,7 @@ Podgląd bez zapisu (`--dry-run`) rozpoznaje twarze i pokazuje w logu, jaki tag 
 do każdego pliku, ale nic nie zapisuje do zdjęć (potwierdzenia są wtedy pomijane, bo i tak nic
 by się nie zapisało):
 
-```
+``` script
 files-organizer-faces --config config.yaml --dry-run
 ```
 

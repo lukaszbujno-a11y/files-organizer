@@ -18,7 +18,7 @@ margin_hours: 2
 # Reguły przypisywania zdjęć, sprawdzane w podanej kolejności - wygrywa pierwsza
 # pasująca. Zdjęcie, do którego nie pasuje żadna reguła, jest pomijane.
 #   calendar - wydarzenie z kalendarza:    2026/07/2026-07-15 Wakacje Chorwacja
-#   location - GPS z EXIF poza home_country: 2026/07/2026-07-15 Croatia-Split
+#   location - GPS z EXIF poza home_country: 2026/07/2026-07-15 Chorwacja-Split
 #              (wymaga `pip install -e ".[location_recognition]"`)
 #   date     - sama data, ale tylko gdy z danego dnia do tej reguły dotrze
 #              więcej niż date_group_threshold zdjęć: 2026/07/2026-07-15
@@ -27,9 +27,10 @@ rules: ["calendar"]
 # rules: ["calendar", "location", "date"]
 
 # Kraj "domowy" dla reguły location - zdjęcia z tego kraju ta reguła pomija.
-# Nazwa angielska, jak w ISO 3166 (np. "Poland", "Croatia"). Bez ustawienia
+# Nazwa w języku location_recognition.language (domyślnie polskim, np. "Polska";
+# przy language: "en" - "Poland"). Bez ustawienia
 # reguła przypisuje każde zdjęcie z rozpoznaną lokalizacją.
-# home_country: "Poland"
+# home_country: "Polska"
 
 # Próg reguły date: katalog z samą datą powstaje od date_group_threshold + 1 zdjęć.
 date_group_threshold: 5
@@ -74,3 +75,7 @@ phone_mapping:
 # dane nie są wysyłane poza ten komputer). Zdjęcia bez GPS są pomijane.
 # location_recognition:
 #   type: "reverse_geocoder"
+#   # Język nazw krajów w tagach Country: i katalogach reguły location (domyślnie "pl").
+#   # Nazwy miast zawsze pochodzą z bazy GeoNames - angielskie, bez polskich znaków
+#   # (np. "Krakow", "Vienna").
+#   language: "pl"

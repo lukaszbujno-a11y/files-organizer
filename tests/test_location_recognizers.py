@@ -60,3 +60,25 @@ def test_recognize_returns_none_when_geocoder_finds_nothing(tmp_path):
     recognizer = ReverseGeocoderRecognizer(geocoder=geocoder, gps_reader=lambda p: (49.3, 19.9))
 
     assert recognizer.recognize(path) is None
+
+
+def test_country_name_is_translated_to_polish():
+    pytest.importorskip("pycountry")
+    from files_organizer.location_recognizers.geocoder import _country_name
+
+    assert _country_name("HR", "pl") == "Chorwacja"
+    assert _country_name("PL", "pl") == "Polska"
+    assert _country_name("HR", "en") == "Croatia"
+
+
+def test_unknown_language_falls_back_to_english():
+    pytest.importorskip("pycountry")
+    from files_organizer.location_recognizers.geocoder import _country_name
+
+    assert _country_name("HR", "xx") == "Croatia"
+
+
+def test_get_location_recognizer_passes_language_to_geocoder():
+    recognizer = get_location_recognizer({"type": "reverse_geocoder", "language": "en"})
+
+    assert recognizer.geocoder.language == "en"

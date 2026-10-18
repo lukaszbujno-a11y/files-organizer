@@ -21,6 +21,8 @@ def classify_photos(
     location_recognizer: LocationRecognizer | None = None,
     log: LogFn | None = None,
     should_stop: Callable[[], bool] | None = None,
+    numbering: tuple[int, int] | None = None,
+    location_stats: Counter[str] | None = None,
 ) -> list[tuple[Photo, MatchResult]]:
     """Decide where each photo goes by trying `config.rules` in order; the first rule that
     places a photo wins, and a photo no rule places comes back UNMATCHED, with `detail` saying
@@ -40,13 +42,20 @@ def classify_photos(
 
     `should_stop`, when given, is checked between photos; once it returns True the photos not
     yet looked at are left out of the result (the caller is expected to stop anyway).
+
+    For calling this one photo at a time (possible whenever `date` isn't among the rules):
+    `numbering` = `(index, total)` numbers the log lines within the whole run instead of within
+    `photos`, and a caller-owned `location_stats` collects the lookup sources across calls -
+    the summary line is then left to the caller.
     """
     log = log or (lambda message: None)
-    location_stats: Counter[str] = Counter()
+    summarize = location_stats is None
+    location_stats = Counter() if location_stats is None else location_stats
     location_started = time.monotonic()
+    start_index, total = numbering or (1, len(photos))
 
     first_pass = []
-    for index, photo in enumerate(photos, start=1):
+    for index, photo in enumerate(photos, start=start_index):
         if should_stop is not None and should_stop():
             break
         reached_date = False
@@ -61,16 +70,14 @@ def classify_photos(
             result, reason, origin = _apply_rule(rule, photo, config, events, location_recognizer, location_stats)
             if origin:
                 # only photos that actually needed a lookup - "no GPS" is just counted in the summary
-                log(f"  [{index}/{len(photos)}] {photo.path.name}: {reason or f'lokalizacja: {result.detail}'} [{origin}]")
+                log(f"  [{index}/{total}] {photo.path.name}: {reason or f'lokalizacja: {result.detail}'} [{origin}]")
             if result is not None:
                 break
             reasons.append(reason)
         first_pass.append((photo, reached_date, result, reasons))
 
-    if location_stats:
-        elapsed = time.monotonic() - location_started
-        sources = ", ".join(f"{_SOURCE_LABELS.get(source, source)}: {count}" for source, count in sorted(location_stats.items()))
-        log(f"  Lokalizacje ustalone w {elapsed:.1f} s ({sources})")
+    if summarize and location_stats:
+        log(f"  Lokalizacje ustalone w {time.monotonic() - location_started:.1f} s ({describe_location_stats(location_stats)})")
 
     per_day = Counter(photo.taken_at.date() for photo, reached_date, _, _ in first_pass if reached_date)
     results = []
@@ -87,6 +94,11 @@ def classify_photos(
             result = MatchResult(status=MatchStatus.UNMATCHED, detail="; ".join(reasons) or "brak włączonych reguł")
         results.append((photo, result))
     return results
+
+
+def describe_location_stats(location_stats: Counter[str]) -> str:
+    """E.g. "API: 2, cache: 5, brak GPS: 3"."""
+    return ", ".join(f"{_SOURCE_LABELS.get(source, source)}: {count}" for source, count in sorted(location_stats.items()))
 
 
 def _apply_rule(

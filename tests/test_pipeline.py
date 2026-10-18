@@ -55,3 +55,27 @@ def test_log_explains_why_a_photo_was_skipped(monkeypatch, tmp_path):
     assert len(skipped) == 3
     assert "kalendarz: brak wydarzenia; data: 3 zdjęć z dnia, potrzeba > 5" in skipped[0]
     assert any(line.startswith("[2/3] Analiza zakończona") and "pominięte: 3" in line for line in lines)
+
+
+def test_without_date_rule_each_file_is_placed_before_the_next_is_read(monkeypatch, tmp_path):
+    photos = make_photos(tmp_path, datetime(2026, 7, 15), 2)
+    by_path = {photo.path: photo for photo in photos}
+    lines: list[str] = []
+
+    def read(path):
+        lines.append(f"read {path.name}")
+        return by_path[path]
+
+    monkeypatch.setattr(pipeline, "iter_media_files", lambda input_dir: list(by_path))
+    monkeypatch.setattr(pipeline, "read_photo_metadata", read)
+    config = Config(input_dir=tmp_path / "input", output_dir=tmp_path / "output", rules=("calendar",))
+
+    pipeline.run_pipeline(config, dry_run=True, log=lines.append)
+
+    events = [line for line in lines if line.startswith("read ") or "-> pominięto" in line]
+    assert events == [
+        "read 20260715_0.jpg",
+        "[1/2] 20260715_0.jpg (2026-07-15 12:00) -> pominięto (kalendarz: brak wydarzenia)",
+        "read 20260715_1.jpg",
+        "[2/2] 20260715_1.jpg (2026-07-15 12:01) -> pominięto (kalendarz: brak wydarzenia)",
+    ]

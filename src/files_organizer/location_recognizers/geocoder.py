@@ -3,6 +3,7 @@ from __future__ import annotations
 import functools
 import gettext
 import json
+import math
 import threading
 import time
 import urllib.error
@@ -84,6 +85,8 @@ DEFAULT_NOMINATIM_CACHE = Path("~/.cache/files-organizer/nominatim.json")
 # (e.g. Ukraine) it's an administrative unit name OSM only has in the local language.
 _PLACE_KEYS = ("city", "town", "village", "hamlet", "municipality", "county")
 
+_KM_PER_DEGREE = 111.32  # length of one degree of latitude
+
 FetchFn = Callable[[str, dict[str, str]], dict]
 
 
@@ -104,8 +107,9 @@ class NominatimGeocoder(Geocoder):
     here") is cached on disk under rounded coordinates - photos from one trip mostly
     hit the cache, and re-running over the same photos sends nothing again.
 
-    The cache key is the coordinates rounded to `cache_precision` decimal places (2 = ~1 km,
-    1 = ~10 km) - enough for a city-level name while letting nearby photos share one request.
+    The cache key is the cell of a grid of roughly `cache_cell_km` x `cache_cell_km` squares the
+    coordinates fall into (the longitude step widens towards the poles so cells stay square) -
+    enough for a city-level name while letting nearby photos share one request.
 
     When the server can't be reached and the coordinates aren't cached, `lookup` raises
     `GeocoderUnavailableError` rather than returning None.
@@ -117,22 +121,22 @@ class NominatimGeocoder(Geocoder):
         cache_path: str | Path | None = None,
         user_agent: str = DEFAULT_USER_AGENT,
         min_interval: float = 1.0,
-        cache_precision: int = 2,
+        cache_cell_km: float = 2.0,
         fetch: FetchFn | None = None,
     ):
         self.language = language
         self.cache_path = Path(cache_path or DEFAULT_NOMINATIM_CACHE).expanduser()
         self.user_agent = user_agent
         self.min_interval = min_interval
-        self.cache_precision = cache_precision
+        self.cache_cell_km = cache_cell_km
         self.fetch = fetch or _http_get_json
         self._cache: dict[str, list[str] | None] | None = None
         self._last_request = 0.0
         self._lock = threading.Lock()
 
     def lookup(self, latitude: float, longitude: float) -> tuple[str, str] | None:
-        lat, lon = round(latitude, self.cache_precision), round(longitude, self.cache_precision)
-        key = f"{self.language}:{lat:.{self.cache_precision}f},{lon:.{self.cache_precision}f}"
+        row, col, lat, lon = self._cache_cell(latitude, longitude)
+        key = f"{self.language}:{self.cache_cell_km:g}km:{row},{col}"
         with self._lock:
             cache = self._load_cache()
             if key in cache:
@@ -144,6 +148,17 @@ class NominatimGeocoder(Geocoder):
             cache[key] = list(found) if found is not None else None
             self._save_cache()
             return found
+
+    def _cache_cell(self, latitude: float, longitude: float) -> tuple[int, int, float, float]:
+        """Grid cell `(row, col)` containing the point, plus the cell centre's coordinates."""
+        lat_step = self.cache_cell_km / _KM_PER_DEGREE
+        row = math.floor(latitude / lat_step)
+        centre_lat = (row + 0.5) * lat_step
+        # one longitude step per row, from the row's centre latitude, so every point in a row
+        # agrees on the column width (clamped near the poles, where cos() goes to 0)
+        lon_step = lat_step / max(math.cos(math.radians(centre_lat)), 0.01)
+        col = math.floor(longitude / lon_step)
+        return row, col, round(centre_lat, 5), round((col + 0.5) * lon_step, 5)
 
     def _request(self, latitude: float, longitude: float) -> tuple[str, str] | None:
         wait = self.min_interval - (time.monotonic() - self._last_request)

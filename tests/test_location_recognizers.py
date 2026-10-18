@@ -1,3 +1,5 @@
+import math
+
 import pytest
 
 from files_organizer.location_recognizers import ReverseGeocoderRecognizer, get_location_recognizer
@@ -135,8 +137,8 @@ def test_nominatim_caches_results_on_disk(tmp_path):
 
     geocoder, calls = make_nominatim(tmp_path, [{"address": {"city": "Kraków", "country": "Polska"}}])
     geocoder.lookup(50.0612, 19.9371)
-    # within ~1 km - same cache key, no second request
-    assert geocoder.lookup(50.0581, 19.9402) == ("Kraków", "Polska")
+    # a few metres away - same cache cell, no second request
+    assert geocoder.lookup(50.0613, 19.9372) == ("Kraków", "Polska")
     assert len(calls) == 1
 
     def fail(url, headers):
@@ -190,10 +192,10 @@ def test_nominatim_serves_cached_name_when_offline(tmp_path):
         raise urllib.error.URLError("no network")
 
     reloaded = NominatimGeocoder(cache_path=tmp_path / "cache.json", min_interval=0, fetch=offline)
-    assert reloaded.lookup(48.2112, 16.3688) == ("Wiedeń", "Austria")
+    assert reloaded.lookup(48.2101, 16.3701) == ("Wiedeń", "Austria")
 
 
-def test_nominatim_cache_precision_is_configurable(tmp_path):
+def test_nominatim_cache_cell_size_is_configurable(tmp_path):
     from files_organizer.location_recognizers.geocoder import NominatimGeocoder
 
     calls = []
@@ -202,8 +204,23 @@ def test_nominatim_cache_precision_is_configurable(tmp_path):
         calls.append(url)
         return {"address": {"city": "Kraków", "country": "Polska"}}
 
-    geocoder = NominatimGeocoder(cache_path=tmp_path / "c.json", min_interval=0, cache_precision=1, fetch=fetch)
-    geocoder.lookup(50.06, 19.96)
-    geocoder.lookup(50.09, 19.99)  # ~4 km away, same 0.1° cell (50.1, 20.0)
+    geocoder = NominatimGeocoder(cache_path=tmp_path / "c.json", min_interval=0, cache_cell_km=10, fetch=fetch)
+    row, col, lat, lon = geocoder._cache_cell(50.06, 19.94)
+    geocoder.lookup(lat - 0.03, lon - 0.05)
+    geocoder.lookup(lat + 0.03, lon + 0.05)  # ~7 km apart, both within the same 10 km cell
 
     assert len(calls) == 1
+
+
+def test_nominatim_default_cells_are_about_two_km(tmp_path):
+    from files_organizer.location_recognizers.geocoder import NominatimGeocoder
+
+    geocoder = NominatimGeocoder(cache_path=tmp_path / "c.json")
+    row, col, lat, lon = geocoder._cache_cell(54.35, 18.65)
+
+    # cell centre +/- 0.9 km stays in the cell; 1.1 km off the centre leaves it (both axes)
+    km_lat, km_lon = 1 / 111.32, 1 / (111.32 * math.cos(math.radians(lat)))
+    assert geocoder._cache_cell(lat + 0.9 * km_lat, lon + 0.9 * km_lon)[:2] == (row, col)
+    assert geocoder._cache_cell(lat - 0.9 * km_lat, lon - 0.9 * km_lon)[:2] == (row, col)
+    assert geocoder._cache_cell(lat + 1.1 * km_lat, lon)[:2] != (row, col)
+    assert geocoder._cache_cell(lat, lon + 1.1 * km_lon)[:2] != (row, col)

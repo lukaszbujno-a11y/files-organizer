@@ -90,6 +90,6 @@ phone_mapping:
 #   language: "pl"
 #   # Tylko nominatim: plik cache (domyślnie ~/.cache/files-organizer/nominatim.json)
 #   # cache_path: "~/.cache/files-organizer/nominatim.json"
-#   # Tylko nominatim: dokładność cache w miejscach po przecinku współrzędnych
-#   # (2 = ~1 km, domyślnie; 1 = ~10 km - mniej zapytań, ale ryzyko nazwy sąsiedniej miejscowości)
-#   # cache_precision: 2
+#   # Tylko nominatim: rozmiar komórki cache w km - zdjęcia w promieniu jednej komórki
+#   # dzielą jedno zapytanie (większa = mniej zapytań, ale ryzyko nazwy sąsiedniej miejscowości)
+#   # cache_cell_km: 2

@@ -99,6 +99,8 @@ files-organizer/
 │   ├── organizer.py         # budowa struktury katalogów, kopiowanie/przenoszenie
 │   ├── config.py            # wczytywanie config.yaml
 │   ├── pipeline.py          # pętla dopasowanie->kopiowanie, współdzielona przez CLI i GUI
+│   ├── catalog.py           # lokalny katalog metadanych (SQLite): skan przyrostowy, wyszukiwanie
+│   ├── catalog_cli.py       # `files-organizer-catalog scan|search`
 │   ├── gui.py               # okno graficzne (Tkinter): ścieżki, tryb, config, log
 │   ├── cli.py               # `files-organizer --config config.yaml [--dry-run] [--gui]`
 │   ├── face_recognizers/    # FaceRecognizer ← InsightFaceRecognizer (detektor/embedder/known faces)
@@ -150,6 +152,8 @@ Otwiera okno, w którym można:
 - przełączyć tryb **kopiuj / przenieś** oraz margines dopasowania i podgląd (dry-run) —
   podgląd jest domyślnie włączony, żeby faktycznie skopiować/przenieść pliki, odznacz go,
 - uruchomić akcję przyciskiem „Uruchom” i obserwować log kopiowania/przenoszenia na żywo,
+- zaktualizować lokalny katalog metadanych przyciskiem „Skanuj” i przeszukiwać go w zakładce
+  „Katalog” (patrz [Katalog metadanych](#katalog-metadanych-sqlite)),
 - bezpiecznie przerwać akcję przyciskiem „Zatrzymaj” — bieżący plik jest zawsze dokańczany,
   zatrzymanie następuje dopiero przed kolejnym plikiem, więc nic nie zostaje w połowie skopiowane.
 
@@ -165,6 +169,38 @@ brew install python-tk@3.12
 
 Bez `config.yaml` (lub bez sekcji `calendar` w configu) zdjęcia nie są
 dopasowywane do wydarzeń kalendarza — trafiają do katalogu `Nieprzypisane`.
+
+## Katalog metadanych (SQLite)
+
+Żeby przy każdym uruchomieniu nie odpytywać exiftoolem każdego pliku od nowa, metadane
+trzymane są w lokalnej bazie SQLite — domyślnie `~/.cache/files-organizer/catalog.sqlite`
+(poza repozytorium; pliki `*.sqlite` są dodatkowo w `.gitignore`). Dla każdego pliku:
+data zrobienia (i czy pochodzi z EXIF, czy z daty modyfikacji pliku), producent i model
+telefonu, GPS, tagi `Person:`/`Location:`/`Country:` oraz miejsce ustalone przez regułę
+`location`.
+
+- **Skanuj** (GUI) / `files-organizer-catalog scan` — przechodzi po `input_dir` i czyta
+  exiftoolem tylko pliki nowe lub zmienione (inny rozmiar albo data modyfikacji), po 200 w
+  jednym procesie exiftool. Pliki usunięte z dysku znikają z bazy. Zatrzymanie skanu
+  zachowuje już odczytane paczki.
+- **Uruchom** sam robi najpierw taki skan przyrostowy, a potem bierze datę, model i GPS z bazy.
+  Miejsca rozpoznane przez regułę `location` są zapamiętywane (osobno dla każdego backendu i
+  języka), więc kolejne uruchomienie nie pyta już geokodera. Skopiowane/przeniesione pliki
+  trafiają do bazy pod nową ścieżką, więc uporządkowana biblioteka też jest przeszukiwalna.
+- **Zakładka „Katalog”** / `files-organizer-catalog search` — wyszukiwanie po zakresie dat,
+  telefonie, kraju, osobie, plikach bez daty EXIF i bez GPS, np.:
+
+  ```
+  files-organizer-catalog search --from 2026-07-01 --to 2026-07-31 --model "iPhone 15 Pro"
+  files-organizer-catalog search --person Anna --country Chorwacja
+  ```
+
+Tagi dopisane przez `files-organizer-faces` / `-locations` zmieniają datę modyfikacji pliku,
+więc kolejny skan sam je wczyta. Baza jest tylko kopią danych z plików: można ją w każdej
+chwili usunąć (zostanie zbudowana od nowa), a przy zmianie jej schematu w nowej wersji
+programu jest przebudowywana automatycznie. Konfiguracja w sekcji `catalog` (patrz
+`config.example.yaml`); `enabled: false` wraca do czytania każdego pliku przy każdym
+uruchomieniu.
 
 ## Konfiguracja Google Calendar
 

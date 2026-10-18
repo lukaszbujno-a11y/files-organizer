@@ -5,6 +5,9 @@ from pathlib import Path
 
 import yaml
 
+# Every classification rule `rules.classify_photos` knows, in their default priority order.
+ALL_RULES = ("calendar", "location", "date")
+
 
 @dataclass(frozen=True)
 class PhoneMappingEntry:
@@ -25,10 +28,38 @@ class Config:
     include_tags: list[str] | None = None
     face_recognition: dict | None = None
     location_recognition: dict | None = None
+    # Classification rules tried in order; the first one that places a photo wins.
+    rules: tuple[str, ...] = ("calendar",)
+    home_country: str | None = None
+    # A day gets its own date-only folder only when MORE than this many photos reach the date rule.
+    date_group_threshold: int = 5
 
     def __post_init__(self):
         if self.mode not in {"copy", "move"}:
             raise ValueError(f"mode must be 'copy' or 'move', got {self.mode!r}")
+        unknown = [rule for rule in self.rules if rule not in ALL_RULES]
+        if unknown:
+            raise ValueError(f"unknown rules {unknown!r}, expected some of {list(ALL_RULES)!r}")
+        if len(set(self.rules)) != len(self.rules):
+            raise ValueError(f"rules must not repeat, got {list(self.rules)!r}")
+        if self.date_group_threshold < 0:
+            raise ValueError(f"date_group_threshold must be >= 0, got {self.date_group_threshold!r}")
+
+
+def with_rule_enabled(rules: tuple[str, ...], rule: str, enabled: bool) -> tuple[str, ...]:
+    """Turn `rule` on or off in `rules`, keeping the configured order of the others.
+
+    A newly enabled rule is inserted where it sits in the default `ALL_RULES` order relative to
+    the rules already present, e.g. enabling `location` in `(calendar, date)` gives
+    `(calendar, location, date)`.
+    """
+    if not enabled:
+        return tuple(r for r in rules if r != rule)
+    if rule in rules:
+        return rules
+    rank = ALL_RULES.index(rule)
+    position = next((i for i, r in enumerate(rules) if ALL_RULES.index(r) > rank), len(rules))
+    return rules[:position] + (rule,) + rules[position:]
 
 
 def default_config(base_dir: str | Path | None = None) -> Config:
@@ -63,4 +94,7 @@ def load_config(path: str | Path) -> Config:
         include_tags=raw.get("include_tags"),
         face_recognition=raw.get("face_recognition"),
         location_recognition=raw.get("location_recognition"),
+        rules=tuple(raw.get("rules") or ("calendar",)),
+        home_country=raw.get("home_country"),
+        date_group_threshold=raw.get("date_group_threshold", 5),
     )

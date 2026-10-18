@@ -4,19 +4,23 @@ from dataclasses import dataclass
 from datetime import timedelta
 from enum import Enum, auto
 
-from .models import Event, Photo
+from .models import Event, Photo, RecognizedLocation
 
 
 class MatchStatus(Enum):
     MATCHED = auto()
     UNMATCHED = auto()
     OVERLAPPING = auto()
+    # Not produced by `match_photo_to_event` - set by the later rules in `rules.classify_photos`.
+    LOCATION = auto()
+    DATE_GROUP = auto()
 
 
 @dataclass(frozen=True)
 class MatchResult:
     status: MatchStatus
     event: Event | None = None
+    location: RecognizedLocation | None = None
 
 
 def match_photo_to_event(photo: Photo, events: list[Event], margin_hours: float = 2) -> MatchResult:

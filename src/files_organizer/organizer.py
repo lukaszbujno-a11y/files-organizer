@@ -26,6 +26,14 @@ def build_target_dir(config: Config, photo: Photo, match: MatchResult) -> Path:
         year, month = f"{photo.taken_at:%Y}", f"{photo.taken_at:%m}"
         folder_name = f"{photo.taken_at:%Y-%m-%d} {config.overlap_dir_name}"
         target = base / year / month / folder_name
+    elif match.status == MatchStatus.LOCATION:
+        location = match.location
+        year, month = f"{photo.taken_at:%Y}", f"{photo.taken_at:%m}"
+        folder_name = f"{photo.taken_at:%Y-%m-%d} {location.country}-{location.city}"
+        target = base / year / month / folder_name
+    elif match.status == MatchStatus.DATE_GROUP:
+        year, month = f"{photo.taken_at:%Y}", f"{photo.taken_at:%m}"
+        target = base / year / month / f"{photo.taken_at:%Y-%m-%d}"
     else:
         target = base / config.unmatched_dir_name / f"{photo.taken_at:%Y-%m}"
 

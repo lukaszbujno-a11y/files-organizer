@@ -3,7 +3,7 @@ from pathlib import Path
 
 from files_organizer.config import Config, PhoneMappingEntry
 from files_organizer.matcher import MatchResult, MatchStatus
-from files_organizer.models import Event, Photo
+from files_organizer.models import Event, Photo, RecognizedLocation
 from files_organizer.organizer import build_target_dir
 
 
@@ -60,3 +60,24 @@ def test_phone_mapping_adds_parent_dir(tmp_path):
     target = build_target_dir(config, photo, match)
 
     assert target == config.output_dir / "Ania" / "2026" / "07" / "2026-07-15 Urodziny"
+
+
+def test_location_photo_goes_to_country_city_folder(tmp_path):
+    config = make_config(tmp_path)
+    location = RecognizedLocation(city="Split", country="Croatia", latitude=43.5, longitude=16.4)
+    photo = Photo(path=Path("IMG_5.jpg"), taken_at=datetime(2026, 7, 15, 12))
+    match = MatchResult(status=MatchStatus.LOCATION, location=location)
+
+    target = build_target_dir(config, photo, match)
+
+    assert target == config.output_dir / "2026" / "07" / "2026-07-15 Croatia-Split"
+
+
+def test_date_group_photo_goes_to_date_only_folder(tmp_path):
+    config = make_config(tmp_path)
+    photo = Photo(path=Path("IMG_6.jpg"), taken_at=datetime(2026, 7, 15, 12))
+    match = MatchResult(status=MatchStatus.DATE_GROUP)
+
+    target = build_target_dir(config, photo, match)
+
+    assert target == config.output_dir / "2026" / "07" / "2026-07-15"

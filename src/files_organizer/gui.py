@@ -112,6 +112,8 @@ class OrganizerApp:
         ttk.Label(actions_frame, textvariable=self.status_var).pack(side="left")
         self.run_button = ttk.Button(actions_frame, text="Uruchom", command=self._on_run)
         self.run_button.pack(side="right")
+        self.scan_button = ttk.Button(actions_frame, text="Skanuj", command=self._on_scan)
+        self.scan_button.pack(side="right", padx=(0, 8))
         self.stop_button = ttk.Button(actions_frame, text="Zatrzymaj", command=self._on_stop, state="disabled")
         self.stop_button.pack(side="right", padx=(0, 8))
 
@@ -271,6 +273,7 @@ class OrganizerApp:
                 message = self.log_queue.get_nowait()
                 if message is _DONE:
                     self.run_button.configure(state="normal")
+                    self.scan_button.configure(state="normal")
                     self.stop_button.configure(state="disabled")
                     self.status_var.set("Gotowy.")
                 elif isinstance(message, str) and message.startswith("ERROR:"):
@@ -335,14 +338,44 @@ class OrganizerApp:
         self.log_widget.delete("1.0", "end")
         self.log_widget.configure(state="disabled")
 
-        self.run_button.configure(state="disabled")
-        self.stop_button.configure(state="normal")
-        self.status_var.set("Trwa podgląd…" if dry_run else "Trwa kopiowanie/przenoszenie…")
+        self._set_busy("Trwa podgląd…" if dry_run else "Trwa kopiowanie/przenoszenie…")
         self.stop_event = threading.Event()
         self.worker = threading.Thread(
             target=self._run_worker, args=(run_config, dry_run, self.stop_event), daemon=True
         )
         self.worker.start()
+
+    def _on_scan(self) -> None:
+        """Bring the catalog up to date with the source directory, without classifying or copying anything."""
+        if self.worker is not None and self.worker.is_alive():
+            return
+        input_dir = Path(self.input_var.get())
+        volume = missing_volume(input_dir)
+        if volume is not None:
+            messagebox.showerror("Błąd", f"Katalog wejściowy ({input_dir}) jest na dysku, który nie jest podłączony: {volume} nie istnieje.")
+            return
+        if not input_dir.is_dir():
+            messagebox.showerror("Błąd", f"Katalog wejściowy ({input_dir}) nie istnieje.")
+            return
+        if not (self.config.catalog or {}).get("enabled", True):
+            messagebox.showerror("Błąd", "Katalog jest wyłączony w konfiguracji (catalog.enabled: false).")
+            return
+
+        self._set_busy("Trwa skanowanie…")
+        self.stop_event = threading.Event()
+        self.worker = threading.Thread(
+            target=self._scan_worker, args=(replace(self.config, input_dir=input_dir), self.stop_event), daemon=True
+        )
+        self.worker.start()
+
+    def _set_busy(self, status: str) -> None:
+        self.log_widget.configure(state="normal")
+        self.log_widget.delete("1.0", "end")
+        self.log_widget.configure(state="disabled")
+        self.run_button.configure(state="disabled")
+        self.scan_button.configure(state="disabled")
+        self.stop_button.configure(state="normal")
+        self.status_var.set(status)
 
     def _on_stop(self) -> None:
         if self.stop_event is None:
@@ -361,6 +394,24 @@ class OrganizerApp:
                 self.log_queue.put("Zatrzymano na życzenie użytkownika.")
             else:
                 self.log_queue.put("Podgląd zakończony." if dry_run else "Zakończono.")
+        except Exception as exc:
+            self.log_queue.put(f"ERROR:{exc}")
+        finally:
+            if catalog is not None:
+                catalog.close()
+            self.log_queue.put(_DONE)
+
+
+    def _scan_worker(self, scan_config: Config, stop_event: threading.Event) -> None:
+        catalog = None
+        try:
+            catalog = open_catalog(scan_config)
+            self.log_queue.put(f"Skanowanie: {scan_config.input_dir} -> {catalog.path}")
+            result = catalog.scan(scan_config.input_dir, log=self.log_queue.put, should_stop=stop_event.is_set)
+            if result.stopped:
+                self.log_queue.put("Zatrzymano na życzenie użytkownika - odczytane pliki zostały zapisane w katalogu.")
+            else:
+                self.log_queue.put(f"Skanowanie zakończone - {result.describe()}")
         except Exception as exc:
             self.log_queue.put(f"ERROR:{exc}")
         finally:

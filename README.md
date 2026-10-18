@@ -38,6 +38,16 @@ Jeżeli zdjęcie nie pasuje do żadnego wydarzenia:
 Nieprzypisane/
     2026-07
 
+Uwzględnienie telefonu (opcja opcjonalna)
+Model telefonu można wykorzystać np. do rozdzielenia zdjęć na postawie tagu informacji w kalendarzu o osobie która jest na dydarzeniu. Doposowanie na postawie słownika TAG - TELEFON (marka model) - KATALOG NADRZEDNY
+
+Dodatkowe dopasowanie
+Jeżeli wydarzenia nachodzą na siebie:
+utwórz katalog w strukturze np:
+2026/
+    07/
+        2026-07-15 Niedopasowane
+
 ## Reguły przypisywania (kalendarz → lokalizacja → data)
 
 Oprócz kalendarza zdjęcie można przypisać na podstawie lokalizacji lub samej daty.
@@ -55,16 +65,6 @@ Kolejność można zmienić (np. `rules: ["calendar", "date", "location"]`), a w
 (sekcja „Reguły”) i w CLI (`--rules calendar,location,date`, `--date-group-threshold 10`)
 można reguły włączać/wyłączać i zmieniać próg na jedno uruchomienie.
 Reguła `location` wymaga `pip install -e ".[location_recognition]"`.
-
-Uwzględnienie telefonu (opcja opcjonalna)
-Model telefonu można wykorzystać np. do rozdzielenia zdjęć na postawie tagu informacji w kalendarzu o osobie która jest na dydarzeniu. Doposowanie na postawie słownika TAG - TELEFON (marka model) - KATALOG NADRZEDNY
-
-Dodatkowe dopasowanie
-Jeżeli wydarzenia nachodzą na siebie:
-utwórz katalog w strukturze np:
-2026/
-    07/
-        2026-07-15 Niedopasowane
 
 # Technologia
 

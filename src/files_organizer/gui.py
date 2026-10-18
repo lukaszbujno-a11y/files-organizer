@@ -44,7 +44,7 @@ class OrganizerApp:
         self.output_var = tk.StringVar(value=str(config.output_dir) if config.output_dir else "")
         self.mode_var = tk.StringVar(value=config.mode)
         self.margin_var = tk.StringVar(value=str(config.margin_hours))
-        self.dry_run_var = tk.BooleanVar(value=False)
+        self.dry_run_var = tk.BooleanVar(value=True)  # preview by default - copying/moving is opt-in
         self.rules = config.rules
         self.rule_vars = {rule: tk.BooleanVar(value=rule in config.rules) for rule in ALL_RULES}
         self.home_country_var = tk.StringVar(value=config.home_country or "")

@@ -147,7 +147,8 @@ files-organizer --gui
 Otwiera okno, w którym można:
 - wskazać/edytować katalog źródłowy i docelowy (pola tekstowe + przyciski „Wybierz…”),
 - wybrać plik `config.yaml` i wczytać go do formularza,
-- przełączyć tryb **kopiuj / przenieś** oraz margines dopasowania i podgląd (dry-run),
+- przełączyć tryb **kopiuj / przenieś** oraz margines dopasowania i podgląd (dry-run) —
+  podgląd jest domyślnie włączony, żeby faktycznie skopiować/przenieść pliki, odznacz go,
 - uruchomić akcję przyciskiem „Uruchom” i obserwować log kopiowania/przenoszenia na żywo,
 - bezpiecznie przerwać akcję przyciskiem „Zatrzymaj” — bieżący plik jest zawsze dokańczany,
   zatrzymanie następuje dopiero przed kolejnym plikiem, więc nic nie zostaje w połowie skopiowane.

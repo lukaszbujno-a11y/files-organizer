@@ -43,4 +43,15 @@ def test_dry_run_does_not_touch_output(monkeypatch, tmp_path):
     lines = run_with_photos(monkeypatch, tmp_path, photos, dry_run=True, rules=("date",))
 
     assert not (tmp_path / "output").exists()
-    assert any(line.endswith(str(tmp_path / "output" / "2026" / "07" / "2026-07-15")) for line in lines)
+    assert any(line.endswith("-> 2026/07/2026-07-15 [data: 6 zdjęć z dnia]") for line in lines)
+
+
+def test_log_explains_why_a_photo_was_skipped(monkeypatch, tmp_path):
+    photos = make_photos(tmp_path, datetime(2026, 7, 15), 3)
+
+    lines = run_with_photos(monkeypatch, tmp_path, photos, dry_run=True, rules=("calendar", "date"))
+
+    skipped = [line for line in lines if "pominięto" in line]
+    assert len(skipped) == 3
+    assert "kalendarz: brak wydarzenia; data: 3 zdjęć z dnia, potrzeba > 5" in skipped[0]
+    assert any(line.startswith("[2/3] Analiza zakończona") and "pominięte: 3" in line for line in lines)

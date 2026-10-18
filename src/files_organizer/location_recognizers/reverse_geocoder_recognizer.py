@@ -24,12 +24,14 @@ class ReverseGeocoderRecognizer(LocationRecognizer):
         self.gps_reader = gps_reader or read_gps
 
     def recognize(self, path: Path) -> RecognizedLocation | None:
+        self.last_source, self.last_source_detail = None, ""
         coords = self.gps_reader(path)
         if coords is None:
             return None
         latitude, longitude = coords
 
         found = self.geocoder.lookup(latitude, longitude)
+        self.last_source, self.last_source_detail = self.geocoder.last_source, self.geocoder.last_source_detail
         if found is None:
             return None
         city, country = found

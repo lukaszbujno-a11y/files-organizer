@@ -21,6 +21,8 @@ class MatchResult:
     status: MatchStatus
     event: Event | None = None
     location: RecognizedLocation | None = None
+    # Why a rule placed (or no rule placed) the photo, for the log - e.g. "6 zdjęć z dnia".
+    detail: str | None = None
 
 
 def match_photo_to_event(photo: Photo, events: list[Event], margin_hours: float = 2) -> MatchResult:

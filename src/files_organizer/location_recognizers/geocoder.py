@@ -22,6 +22,11 @@ class GeocoderUnavailableError(RuntimeError):
 
 
 class Geocoder(ABC):
+    # Where the most recent `lookup` got its answer - "offline", "cache" or "api" - plus a short
+    # human-readable detail (distance to the cached point, request time), for progress logs.
+    last_source: str = "offline"
+    last_source_detail: str = ""
+
     @abstractmethod
     def lookup(self, latitude: float, longitude: float) -> tuple[str, str] | None:
         """Return `(city, country)` for the given coordinates, or None if nothing was found.
@@ -138,11 +143,14 @@ class NominatimGeocoder(Geocoder):
 
     def lookup(self, latitude: float, longitude: float) -> tuple[str, str] | None:
         with self._lock:
-            cached = self._nearest_cached(latitude, longitude)
+            cached, km = self._nearest_cached(latitude, longitude)
             if cached is not None:
+                self.last_source, self.last_source_detail = "cache", f"{km:.1f} km od zapamiętanego punktu"
                 return (cached["city"], cached["country"]) if cached["city"] is not None else None
 
+            started = time.monotonic()
             found = self._request(latitude, longitude)
+            self.last_source, self.last_source_detail = "api", f"{time.monotonic() - started:.1f} s"
             city, country = found if found is not None else (None, None)
             self._load_cache().append(
                 {"lat": latitude, "lon": longitude, "language": self.language, "city": city, "country": country}
@@ -150,7 +158,7 @@ class NominatimGeocoder(Geocoder):
             self._save_cache()
             return found
 
-    def _nearest_cached(self, latitude: float, longitude: float) -> dict | None:
+    def _nearest_cached(self, latitude: float, longitude: float) -> tuple[dict | None, float]:
         # cheap latitude pre-filter before the exact distance - a linear scan is fine for the
         # few thousand distinct places a photo library realistically has
         max_lat_delta = self.cache_radius_km / _KM_PER_DEGREE
@@ -161,7 +169,7 @@ class NominatimGeocoder(Geocoder):
             km = _distance_km(latitude, longitude, entry["lat"], entry["lon"])
             if km <= best_km:
                 best, best_km = entry, km
-        return best
+        return best, best_km
 
     def _request(self, latitude: float, longitude: float) -> tuple[str, str] | None:
         wait = self.min_interval - (time.monotonic() - self._last_request)

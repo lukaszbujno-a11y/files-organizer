@@ -137,3 +137,24 @@ def test_unreachable_geocoder_aborts_classification(tmp_path):
 
     with pytest.raises(GeocoderUnavailableError):
         classify_photos(photos_on(datetime(2026, 7, 15), 1), config, events=[], location_recognizer=OfflineRecognizer())
+
+
+def test_location_lookups_are_logged_with_their_source(tmp_path):
+    class SourcedRecognizer(LocationRecognizer):
+        def recognize(self, path):
+            if path.name == "IMG_0.jpg":
+                self.last_source, self.last_source_detail = None, ""
+                return None
+            self.last_source, self.last_source_detail = "cache", "0.4 km od zapamiętanego punktu"
+            return SPLIT
+
+    config = make_config(tmp_path, rules=("location",))
+    lines: list[str] = []
+
+    results = classify_photos(
+        photos_on(datetime(2026, 7, 15), 2), config, events=[], location_recognizer=SourcedRecognizer(), log=lines.append
+    )
+
+    assert results[0][1].detail == "lokalizacja: brak GPS"
+    assert lines[0] == "  [2/2] IMG_1.jpg: lokalizacja: Split, Croatia [cache, 0.4 km od zapamiętanego punktu]"
+    assert "(cache: 1, brak GPS: 1)" in lines[1]
